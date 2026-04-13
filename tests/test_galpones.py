@@ -38,3 +38,32 @@ async def test_crud_galpones(client, seeded_admin, auth_headers):
     )
     assert delete_response.status_code == 200
     assert delete_response.json()["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_lotes_by_galpon_endpoint(client, seeded_galpon_lote, auth_headers):
+    galpon = seeded_galpon_lote["galpon"]
+
+    response = await client.get(
+        f"/api/galpones/{galpon.id}/lotes",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert len(body["data"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_delete_galpon_con_lotes_activos_retorna_409(
+    client, seeded_galpon_lote, auth_headers
+):
+    galpon = seeded_galpon_lote["galpon"]
+
+    response = await client.delete(
+        f"/api/galpones/{galpon.id}",
+        headers=auth_headers,
+    )
+    assert response.status_code == 409
+    body = response.json()
+    assert body["success"] is False

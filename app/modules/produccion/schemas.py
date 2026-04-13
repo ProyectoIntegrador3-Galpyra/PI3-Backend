@@ -8,6 +8,12 @@ class ProduccionBase(BaseModel):
     lote_id: str | None = Field(default=None, min_length=36, max_length=36)
     fecha: datetime
     cantidad: int = Field(ge=0)
+    huevos_yumbo: int = Field(default=0, ge=0)
+    huevos_aaa: int = Field(default=0, ge=0)
+    huevos_aa: int = Field(default=0, ge=0)
+    huevos_a: int = Field(default=0, ge=0)
+    huevos_b: int = Field(default=0, ge=0)
+    huevos_c: int = Field(default=0, ge=0)
     huevos_rotos: int | None = Field(default=None, ge=0)
     observaciones: str | None = None
 
@@ -32,6 +38,12 @@ class ProduccionUpdate(BaseModel):
     lote_id: str | None = Field(default=None, min_length=36, max_length=36)
     fecha: datetime | None = None
     cantidad: int | None = Field(default=None, ge=0)
+    huevos_yumbo: int | None = Field(default=None, ge=0)
+    huevos_aaa: int | None = Field(default=None, ge=0)
+    huevos_aa: int | None = Field(default=None, ge=0)
+    huevos_a: int | None = Field(default=None, ge=0)
+    huevos_b: int | None = Field(default=None, ge=0)
+    huevos_c: int | None = Field(default=None, ge=0)
     huevos_rotos: int | None = Field(default=None, ge=0)
     observaciones: str | None = None
 
@@ -43,3 +55,10 @@ class ProduccionOut(ProduccionBase):
     porcentaje_postura: float | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class ProduccionPromedioOut(BaseModel):
+    periodo: str
+    total_huevos: int
+    promedio_huevos: float
+    registros: int

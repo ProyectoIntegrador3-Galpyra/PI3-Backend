@@ -25,6 +25,12 @@ class ProduccionHuevo(BaseModel):
         DateTime(timezone=True), nullable=False, index=True
     )
     cantidad: Mapped[int] = mapped_column(Integer, nullable=False)
+    huevos_yumbo: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    huevos_aaa: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    huevos_aa: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    huevos_a: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    huevos_b: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    huevos_c: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     huevos_rotos: Mapped[int | None] = mapped_column(Integer, nullable=True)
     observaciones: Mapped[str | None] = mapped_column(Text, nullable=True)
 

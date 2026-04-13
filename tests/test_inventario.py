@@ -1,6 +1,14 @@
 import pytest
 
 
+PNG_VALIDO = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+    b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00"
+    b"\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18"
+    b"\xd4n\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
 @pytest.mark.asyncio
 async def test_inventario_procesar_acepta_campo_imagen(
     client,
@@ -12,7 +20,7 @@ async def test_inventario_procesar_acepta_campo_imagen(
     response = await client.post(
         "/api/inventario/procesar",
         data={"lote_id": lote.id},
-        files={"imagen": ("inventario.jpg", b"fake-image-bytes", "image/jpeg")},
+        files={"imagen": ("inventario.png", PNG_VALIDO, "image/png")},
         headers=auth_headers,
     )
     assert response.status_code == 200

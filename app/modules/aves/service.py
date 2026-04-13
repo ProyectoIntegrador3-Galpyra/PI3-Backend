@@ -14,6 +14,7 @@ from app.modules.aves.schemas import (
     MovimientoAveCreate,
     MovimientoAveOut,
 )
+from app.modules.galpones.models import Galpon
 from app.shared.enums import TipoMovimientoAve
 
 
@@ -61,9 +62,34 @@ class AvesService:
 
     @staticmethod
     async def create_lote(db: AsyncSession, payload: LoteAveCreate) -> LoteAveOut:
+        galpon_result = await db.execute(
+            select(Galpon).where(
+                Galpon.id == payload.galpon_id,
+                Galpon.deleted_at.is_(None),
+            )
+        )
+        galpon = galpon_result.scalar_one_or_none()
+        if galpon is None:
+            raise AppException(
+                message="Galpon no encontrado para crear lote",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        if payload.cantidad_inicial > galpon.capacidad:
+            raise AppException(
+                message="La cantidad inicial supera la capacidad del galpon",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
         data = payload.model_dump()
         if data.get("cantidad_actual") is None:
             data["cantidad_actual"] = payload.cantidad_inicial
+
+        if data["cantidad_actual"] > galpon.capacidad:
+            raise AppException(
+                message="La cantidad actual supera la capacidad del galpon",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         lote = LoteAve(**data)
         db.add(lote)

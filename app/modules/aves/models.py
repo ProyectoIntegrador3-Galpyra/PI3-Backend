@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import DateTime
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.base_model import BaseModel
@@ -17,6 +17,10 @@ class LoteAve(BaseModel):
     )
     tipo_ave: Mapped[str] = mapped_column(String(80), nullable=False)
     raza: Mapped[str] = mapped_column(String(120), nullable=False)
+    peso_promedio_ingreso_kg: Mapped[float | None] = mapped_column(
+        Numeric(5, 2),
+        nullable=True,
+    )
     cantidad_inicial: Mapped[int] = mapped_column(Integer, nullable=False)
     cantidad_actual: Mapped[int] = mapped_column(Integer, nullable=False)
     fecha_ingreso: Mapped[datetime] = mapped_column(

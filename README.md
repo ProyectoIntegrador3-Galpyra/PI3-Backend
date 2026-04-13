@@ -114,3 +114,4 @@ pytest -q
 ## Checklist de cierre
 
 - Guia operativa para integracion con Flutter y despliegue en AWS: [docs/checklist-preintegracion-despliegue.md](docs/checklist-preintegracion-despliegue.md)
+- Guia rapida de variables por ambiente para Flutter: [docs/front-envs-flutter.md](docs/front-envs-flutter.md)
