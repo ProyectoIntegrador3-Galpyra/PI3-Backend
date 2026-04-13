@@ -1,6 +1,6 @@
 # CORRECCIÓN APLICADA: [1 — Autenticación en endpoints]
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,6 +61,24 @@ async def list_produccion_galpon(
     data = await ProduccionService.list_por_galpon(db, galpon_id)
     return success_response(
         message="Produccion por galpon obtenida",
+        data=[item.model_dump() for item in data],
+    )
+
+
+@router.get(
+    "/promedios",
+    summary="Promedios de producción por periodo",
+    description="Agrupa la producción de un lote por periodo semanal o mensual.",
+)
+async def get_promedios(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[Usuario, Depends(get_current_user)],
+    lote_id: Annotated[str, Query(min_length=36, max_length=36)],
+    periodo: Annotated[Literal["semanal", "mensual"], Query(...)],
+) -> dict:
+    data = await ProduccionService.get_promedios(db, lote_id=lote_id, periodo=periodo)
+    return success_response(
+        message="Promedios de produccion obtenidos",
         data=[item.model_dump() for item in data],
     )
 

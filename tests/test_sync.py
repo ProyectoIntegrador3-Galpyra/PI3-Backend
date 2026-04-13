@@ -1,7 +1,34 @@
 from datetime import datetime, timezone
+import struct
+import zlib
 from uuid import uuid4
 
 import pytest
+
+
+def _png_bytes(width: int, height: int, rgba: tuple[int, int, int, int]) -> bytes:
+    def chunk(chunk_type: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + chunk_type
+            + data
+            + struct.pack(">I", zlib.crc32(chunk_type + data) & 0xFFFFFFFF)
+        )
+
+    raw = bytearray()
+    pixel = bytes(rgba)
+    for _ in range(height):
+        raw.append(0)
+        for _ in range(width):
+            raw.extend(pixel)
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        + chunk(b"IEND", b"")
+    )
 
 
 @pytest.mark.asyncio
@@ -66,17 +93,21 @@ async def test_sync_batch(client, seeded_galpon_lote, auth_headers):
 @pytest.mark.asyncio
 async def test_inventario_foto_basico(client, seeded_galpon_lote, auth_headers):
     lote = seeded_galpon_lote["lote"]
+    png_bytes = _png_bytes(1, 1, (255, 0, 0, 255))
 
     process_response = await client.post(
         "/api/inventario/procesar",
         data={"lote_id": lote.id},
-        files={"file": ("inventario.jpg", b"fake-image-bytes", "image/jpeg")},
+        files={"file": ("inventario.png", png_bytes, "image/png")},
         headers=auth_headers,
     )
     assert process_response.status_code == 200
     process_body = process_response.json()
     assert process_body["success"] is True
     job_id = process_body["data"]["job_id"]
+    assert process_body["data"]["request_id"]
+    assert process_body["data"]["modo"] in ["mock", "model"]
+    assert process_body["data"]["warning"] in [None, "resultado_no_confiable"]
 
     confirm_response = await client.post(
         "/api/inventario/confirmar",
@@ -96,6 +127,58 @@ async def test_inventario_foto_basico(client, seeded_galpon_lote, auth_headers):
     assert get_response.status_code == 200
     get_body = get_response.json()
     assert get_body["data"]["conteo_confirmado"] == 123
+
+
+@pytest.mark.asyncio
+async def test_inventario_foto_varia_con_imagenes_distintas(
+    client, seeded_galpon_lote, auth_headers
+):
+    lote = seeded_galpon_lote["lote"]
+
+    primera = _png_bytes(1, 1, (255, 0, 0, 255))
+    segunda = _png_bytes(3, 2, (0, 255, 0, 255))
+
+    first_response = await client.post(
+        "/api/inventario/procesar",
+        data={"lote_id": lote.id},
+        files={"file": ("a.png", primera, "image/png")},
+        headers=auth_headers,
+    )
+    second_response = await client.post(
+        "/api/inventario/procesar",
+        data={"lote_id": lote.id},
+        files={"file": ("b.png", segunda, "image/png")},
+        headers=auth_headers,
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    first_body = first_response.json()["data"]
+    second_body = second_response.json()["data"]
+
+    assert first_body["modo"] in ["mock", "model"]
+    assert second_body["modo"] in ["mock", "model"]
+    assert first_body["conteo"] >= 0
+    assert second_body["conteo"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_inventario_foto_rechaza_imagen_invalida(
+    client, seeded_galpon_lote, auth_headers
+):
+    lote = seeded_galpon_lote["lote"]
+
+    response = await client.post(
+        "/api/inventario/procesar",
+        data={"lote_id": lote.id},
+        files={"file": ("invalid.bin", b"not-an-image", "application/octet-stream")},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["success"] is False
+    assert "imagen" in body["message"].lower()
 
 
 @pytest.mark.asyncio

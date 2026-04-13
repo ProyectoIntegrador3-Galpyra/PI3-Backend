@@ -48,11 +48,14 @@ def _build_rate_limit_middleware_state() -> tuple[dict[str, int], int, dict[tupl
     return rules, window, history
 
 
-def _set_security_headers(response) -> None:
+def _set_security_headers(response, path: str) -> None:
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "same-origin"
-    response.headers["Content-Security-Policy"] = "default-src 'self'"
+    # Swagger UI/ReDoc inject inline scripts/styles that are blocked by strict CSP.
+    # Keep CSP on app/API routes and skip it only on documentation endpoints.
+    if path not in {"/docs", "/redoc", "/openapi.json"}:
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
     if settings.environment == "production":
         response.headers["Strict-Transport-Security"] = (
             "max-age=31536000; includeSubDomains"
@@ -107,7 +110,7 @@ def create_app() -> FastAPI:
             history.append(now)
 
         response = await call_next(request)
-        _set_security_headers(response)
+        _set_security_headers(response, path)
 
         return response
 

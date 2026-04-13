@@ -17,6 +17,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test_galpyra.db")
 os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-32-characters-minimum")
 os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+os.environ.setdefault("YOLO_MOCK", "true")
 
 from app.core.dependencies import get_db  # noqa: E402
 from app.core.security import hash_password  # noqa: E402

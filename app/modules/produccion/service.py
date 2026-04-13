@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import status
 from sqlalchemy import func, select
@@ -11,6 +12,7 @@ from app.modules.aves.models import LoteAve
 from app.modules.produccion.models import ProduccionHuevo
 from app.modules.produccion.schemas import (
     ProduccionCreate,
+    ProduccionPromedioOut,
     ProduccionOut,
     ProduccionUpdate,
 )
@@ -195,3 +197,48 @@ class ProduccionService:
         )
         items = result.scalars().all()
         return [await ProduccionService._to_out(db, item) for item in items]
+
+    @staticmethod
+    async def get_promedios(
+        db: AsyncSession,
+        lote_id: str,
+        periodo: Literal["semanal", "mensual"],
+    ) -> list[ProduccionPromedioOut]:
+        dialect_name = db.bind.dialect.name if db.bind is not None else ""
+
+        if periodo == "semanal":
+            if dialect_name == "sqlite":
+                periodo_expr = func.strftime("%Y-W%W", ProduccionHuevo.fecha)
+            else:
+                periodo_expr = func.date_format(ProduccionHuevo.fecha, "%x-W%v")
+        else:
+            if dialect_name == "sqlite":
+                periodo_expr = func.strftime("%Y-%m", ProduccionHuevo.fecha)
+            else:
+                periodo_expr = func.date_format(ProduccionHuevo.fecha, "%Y-%m")
+
+        result = await db.execute(
+            select(
+                periodo_expr.label("periodo"),
+                func.sum(ProduccionHuevo.cantidad).label("total_huevos"),
+                func.avg(ProduccionHuevo.cantidad).label("promedio_huevos"),
+                func.count(ProduccionHuevo.id).label("registros"),
+            )
+            .where(
+                ProduccionHuevo.lote_id == lote_id,
+                ProduccionHuevo.deleted_at.is_(None),
+            )
+            .group_by(periodo_expr)
+            .order_by(periodo_expr.desc())
+        )
+
+        rows = result.all()
+        return [
+            ProduccionPromedioOut(
+                periodo=str(row.periodo),
+                total_huevos=int(row.total_huevos or 0),
+                promedio_huevos=round(float(row.promedio_huevos or 0.0), 2),
+                registros=int(row.registros or 0),
+            )
+            for row in rows
+        ]

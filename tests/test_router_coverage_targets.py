@@ -3,6 +3,14 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 
+PNG_VALIDO = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+    b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00"
+    b"\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18"
+    b"\xd4n\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
 @pytest.mark.asyncio
 async def test_alimentacion_router_crud_y_listados(client, seeded_galpon_lote, auth_headers):
     galpon = seeded_galpon_lote["galpon"]
@@ -214,7 +222,7 @@ async def test_inventario_router_jobs_y_confirmacion(client, seeded_galpon_lote,
     procesar_response = await client.post(
         "/api/inventario/procesar",
         data={"lote_id": lote.id},
-        files={"file": ("inventario.jpg", b"bytes", "image/jpeg")},
+        files={"file": ("inventario.png", PNG_VALIDO, "image/png")},
         headers=auth_headers,
     )
     assert procesar_response.status_code == 200

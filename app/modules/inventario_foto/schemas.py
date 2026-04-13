@@ -7,10 +7,13 @@ from app.shared.enums import EstadoInventarioFoto
 
 
 class InventarioProcesarResponse(BaseModel):
-    conteo: int
+    conteo: int | None
     bounding_boxes: list[dict[str, Any]]
     job_id: str
     modo: str
+    source: str
+    request_id: str
+    warning: str | None = None
 
 
 class InventarioConfirmarRequest(BaseModel):

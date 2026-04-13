@@ -39,3 +39,29 @@ async def test_historial_mortalidad_con_filtros(
     assert data["total_mortalidad"] == 10
     assert data["tasa_mortalidad_porcentaje"] == round(10 / 300 * 100, 2)
     assert len(data["registros"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_create_lote_rechaza_cantidad_sobre_capacidad(
+    client, seeded_galpon_lote, auth_headers
+):
+    galpon = seeded_galpon_lote["galpon"]
+
+    response = await client.post(
+        "/api/lotes",
+        json={
+            "codigo_lote": "L-CAP-001",
+            "tipo_ave": "PONEDORA",
+            "raza": "Hy-Line",
+            "cantidad_inicial": galpon.capacidad + 1,
+            "fecha_ingreso": datetime.now(timezone.utc).isoformat(),
+            "galpon_id": galpon.id,
+            "estado": "ACTIVO",
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["success"] is False
+    assert "capacidad" in body["message"].lower()

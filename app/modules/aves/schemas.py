@@ -9,6 +9,7 @@ class LoteAveBase(BaseModel):
     codigo_lote: str = Field(min_length=1, max_length=80)
     tipo_ave: str = Field(min_length=1, max_length=80)
     raza: str = Field(min_length=1, max_length=120)
+    peso_promedio_ingreso_kg: float | None = Field(default=None, ge=0, le=99.99)
     cantidad_inicial: int = Field(gt=0)
     fecha_ingreso: datetime
     galpon_id: str = Field(min_length=36, max_length=36)
@@ -37,6 +38,7 @@ class LoteAveCreate(LoteAveBase):
 class LoteAveUpdate(BaseModel):
     tipo_ave: str | None = Field(default=None, min_length=1, max_length=80)
     raza: str | None = Field(default=None, min_length=1, max_length=120)
+    peso_promedio_ingreso_kg: float | None = Field(default=None, ge=0, le=99.99)
     cantidad_actual: int | None = Field(default=None, ge=0)
     estado: EstadoLote | None = None
 

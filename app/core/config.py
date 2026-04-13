@@ -40,8 +40,9 @@ class Settings(BaseSettings):
         alias="AWS_S3_EXPECTED_BUCKET_OWNER",
     )
 
-    simulated_inventory_count: int = Field(
-        default=42, alias="SIMULATED_INVENTORY_COUNT"
+    yolo_mock: bool = Field(
+        default=False,
+        alias="YOLO_MOCK",
     )
     upload_dir: str = Field(default="./tmp_uploads", alias="UPLOAD_DIR")
 
