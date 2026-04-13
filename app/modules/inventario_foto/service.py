@@ -1,11 +1,25 @@
-import logging
 import hashlib
+import logging
 import struct
 from collections import deque
 from datetime import datetime, timezone
-from time import perf_counter
 from pathlib import Path
+from time import perf_counter
 from uuid import uuid4
+
+from fastapi import UploadFile, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.core.exceptions import AppException
+from app.modules.inventario_foto.models import InventarioFotoJob
+from app.modules.inventario_foto.schemas import (
+    InventarioConfirmarRequest,
+    InventarioFotoJobOut,
+    InventarioProcesarResponse,
+)
+from app.shared.enums import EstadoInventarioFoto
 
 logger = logging.getLogger(__name__)
 _YOLO_MODEL = None
@@ -28,19 +42,17 @@ def _load_yolo_model_once():
     )
     if not _YOLO_MODEL_PATH.exists() or _YOLO_MODEL_PATH.stat().st_size <= 1024:
         return None
-
     try:
         from ultralytics import YOLO  # type: ignore
 
         _YOLO_MODEL = YOLO(str(_YOLO_MODEL_PATH))
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         logger.exception("No fue posible cargar YOLOv8n al iniciar")
         _YOLO_MODEL = None
     return _YOLO_MODEL
 
 
 _load_yolo_model_once()
-
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _GIF_SIGNATURES = (b"GIF87a", b"GIF89a")
@@ -60,6 +72,43 @@ _JPEG_SOF_MARKERS = {
     0xCE,
     0xCF,
 }
+
+
+def _is_jpeg_standalone_marker(marker: int) -> bool:
+    return marker in {0xD8, 0xD9} or 0xD0 <= marker <= 0xD7
+
+
+def _read_jpeg_sof_dimensions(image_bytes: bytes, segment_start: int) -> tuple[int, int] | None:
+    if segment_start + 5 >= len(image_bytes):
+        return None
+    height = struct.unpack(">H", image_bytes[segment_start + 1 : segment_start + 3])[0]
+    width = struct.unpack(">H", image_bytes[segment_start + 3 : segment_start + 5])[0]
+    return width, height
+
+
+def _read_jpeg_dimensions(image_bytes: bytes) -> tuple[int, int] | None:
+    offset = 2
+    while offset < len(image_bytes):
+        if image_bytes[offset] != 0xFF:
+            offset += 1
+            continue
+        while offset < len(image_bytes) and image_bytes[offset] == 0xFF:
+            offset += 1
+        if offset >= len(image_bytes):
+            break
+        marker = image_bytes[offset]
+        offset += 1
+        if _is_jpeg_standalone_marker(marker):
+            continue
+        if offset + 2 > len(image_bytes):
+            break
+        segment_length = struct.unpack(">H", image_bytes[offset : offset + 2])[0]
+        if segment_length < 2:
+            break
+        if marker in _JPEG_SOF_MARKERS:
+            return _read_jpeg_sof_dimensions(image_bytes, offset + 2)
+        offset += segment_length
+    return None
 
 
 def _extract_image_metadata(image_bytes: bytes) -> tuple[str, int, int]:
@@ -84,49 +133,13 @@ def _extract_image_metadata(image_bytes: bytes) -> tuple[str, int, int]:
         return "gif", width, height
 
     if image_bytes.startswith(_JPEG_SOI):
-        offset = 2
-        while offset < len(image_bytes):
-            if image_bytes[offset] != 0xFF:
-                offset += 1
-                continue
-
-            while offset < len(image_bytes) and image_bytes[offset] == 0xFF:
-                offset += 1
-
-            if offset >= len(image_bytes):
-                break
-
-            marker = image_bytes[offset]
-            offset += 1
-
-            if marker in {0xD8, 0xD9} or 0xD0 <= marker <= 0xD7:
-                continue
-
-            if offset + 2 > len(image_bytes):
-                break
-
-            segment_length = struct.unpack(">H", image_bytes[offset : offset + 2])[0]
-            if segment_length < 2:
-                break
-
-            segment_start = offset + 2
-            if marker in _JPEG_SOF_MARKERS:
-                if segment_start + 5 >= len(image_bytes):
-                    break
-                height = struct.unpack(
-                    ">H", image_bytes[segment_start + 1 : segment_start + 3]
-                )[0]
-                width = struct.unpack(
-                    ">H", image_bytes[segment_start + 3 : segment_start + 5]
-                )[0]
-                return "jpeg", width, height
-
-            offset += segment_length
-
-        raise AppException(
-            message="No fue posible leer las dimensiones de la imagen JPEG",
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        )
+        dims = _read_jpeg_dimensions(image_bytes)
+        if dims is None:
+            raise AppException(
+                message="No fue posible leer las dimensiones de la imagen JPEG",
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+        return "jpeg", dims[0], dims[1]
 
     raise AppException(
         message="El archivo enviado no parece ser una imagen PNG, GIF o JPEG válida",
@@ -156,7 +169,8 @@ def _record_recent_count(conteo: int, request_id: str, source: str) -> None:
     ratio = same_count / len(_RECENT_COUNTS)
     if ratio > _COUNT_ALERT_RATIO:
         logger.warning(
-            "inventario_foto_count_distribution_alert request_id=%s source=%s conteo=%s repeat_ratio=%.2f window_size=%s",
+            "inventario_foto_count_distribution_alert request_id=%s source=%s "
+            "conteo=%s repeat_ratio=%.2f window_size=%s",
             request_id,
             source,
             conteo,
@@ -164,19 +178,120 @@ def _record_recent_count(conteo: int, request_id: str, source: str) -> None:
             len(_RECENT_COUNTS),
         )
 
-from fastapi import UploadFile, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.core.exceptions import AppException
-from app.modules.inventario_foto.models import InventarioFotoJob
-from app.modules.inventario_foto.schemas import (
-    InventarioConfirmarRequest,
-    InventarioFotoJobOut,
-    InventarioProcesarResponse,
-)
-from app.shared.enums import EstadoInventarioFoto
+def _get_box_cls(box) -> int:
+    box_cls = getattr(box, "cls", None)
+    if box_cls is None:
+        return _BIRD_CLASS_ID
+    try:
+        return int(float(box_cls.item()))
+    except Exception:  # noqa: BLE001
+        try:
+            return int(float(box_cls.tolist()[0]))
+        except Exception:  # noqa: BLE001
+            return -1
+
+
+def _get_box_confidence(box) -> float | None:
+    box_conf = getattr(box, "conf", None)
+    if box_conf is None:
+        return None
+    try:
+        return float(box_conf.item())
+    except Exception:  # noqa: BLE001
+        try:
+            return float(box_conf.tolist()[0])
+        except Exception:  # noqa: BLE001
+            return None
+
+
+def _process_yolo_results(results: list) -> tuple[int, list[dict], float | None]:
+    if not results:
+        return 0, [], None
+
+    boxes = results[0].boxes
+    detecciones_bird = [box for box in boxes if _get_box_cls(box) == _BIRD_CLASS_ID]
+
+    bounding_boxes: list[dict] = []
+    confidences: list[float] = []
+    for box in detecciones_bird:
+        xyxy = box.xyxy.tolist()[0]
+        bounding_boxes.append(
+            {
+                "x1": float(xyxy[0]),
+                "y1": float(xyxy[1]),
+                "x2": float(xyxy[2]),
+                "y2": float(xyxy[3]),
+            }
+        )
+        conf = _get_box_confidence(box)
+        if conf is not None:
+            confidences.append(conf)
+
+    confidence_avg = sum(confidences) / len(confidences) if confidences else None
+    return len(detecciones_bird), bounding_boxes, confidence_avg
+
+
+def _run_yolo_inference(model, file_path: Path, request_id: str) -> list:
+    try:
+        return model.predict(source=str(file_path), verbose=False)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "inventario_foto_predict_error request_id=%s error=%s",
+            request_id,
+            type(exc).__name__,
+        )
+        return []
+
+
+def _mock_fallback(
+    image_bytes: bytes,
+    image_width: int,
+    image_height: int,
+) -> tuple[int, list[dict], None, str, str, str]:
+    if settings.environment == "production":
+        raise AppException(
+            message="Modelo de inventario no disponible en producción",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    if not settings.yolo_mock:
+        raise AppException(
+            message="Modelo de inventario no disponible y fallback mock deshabilitado",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    conteo = _estimate_mock_count(image_bytes, image_width, image_height)
+    return conteo, [], None, "mock", "mock", "resultado_no_confiable"
+
+
+def _infer_conteo(
+    image_bytes: bytes,
+    image_width: int,
+    image_height: int,
+    file_path: Path,
+    request_id: str,
+) -> tuple[int, list[dict], float | None, str, str, str | None]:
+    try:
+        model = _load_yolo_model_once()
+        if model is not None:
+            results = _run_yolo_inference(model, file_path, request_id)
+            conteo, bounding_boxes, confidence_avg = _process_yolo_results(results)
+            return conteo, bounding_boxes, confidence_avg, "model", "model", None
+        return _mock_fallback(image_bytes, image_width, image_height)
+    except AppException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "inventario_foto_inference_error request_id=%s error=%s",
+            request_id,
+            type(exc).__name__,
+        )
+        if settings.environment == "production" or not settings.yolo_mock:
+            raise AppException(
+                message="No fue posible procesar la imagen con el modelo de inventario",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            ) from exc
+        conteo = _estimate_mock_count(image_bytes, image_width, image_height)
+        return conteo, [], None, "mock", "mock", "resultado_no_confiable"
 
 
 class InventarioFotoService:
@@ -207,128 +322,16 @@ class InventarioFotoService:
         with file_path.open("wb") as out_file:
             out_file.write(image_bytes)
 
-        conteo: int | None = None
-        bounding_boxes: list[dict] = []
-        modo = "model"
-        source = "model"
-        warning: str | None = None
-        confidence_avg: float | None = None
-
-        try:
-            model = _load_yolo_model_once()
-            if model is not None:
-                try:
-                    results = model.predict(source=str(file_path), verbose=False)
-                except Exception as predict_exc:  # noqa: BLE001
-                    logger.warning(
-                        "inventario_foto_predict_error request_id=%s filename=%s error=%s",
-                        request_id,
-                        file.filename or safe_filename,
-                        predict_exc,
-                    )
-                    results = []
-                if results:
-                    boxes = results[0].boxes
-                    detecciones_bird: list = []
-                    for box in boxes:
-                        box_cls = getattr(box, "cls", None)
-                        if box_cls is None:
-                            detecciones_bird.append(box)
-                            continue
-                        try:
-                            cls_value = int(float(box_cls.item()))
-                        except Exception:  # noqa: BLE001
-                            try:
-                                cls_value = int(float(box_cls.tolist()[0]))
-                            except Exception:  # noqa: BLE001
-                                cls_value = -1
-
-                        if cls_value == _BIRD_CLASS_ID:
-                            detecciones_bird.append(box)
-
-                    conteo = len(detecciones_bird)
-                    bounding_boxes = []
-                    confidences: list[float] = []
-                    for box in detecciones_bird:
-                        xyxy = box.xyxy.tolist()[0]
-                        bounding_boxes.append(
-                            {
-                                "x1": float(xyxy[0]),
-                                "y1": float(xyxy[1]),
-                                "x2": float(xyxy[2]),
-                                "y2": float(xyxy[3]),
-                            }
-                        )
-                        box_conf = getattr(box, "conf", None)
-                        if box_conf is not None:
-                            try:
-                                confidences.append(float(box_conf.item()))
-                            except Exception:  # noqa: BLE001
-                                try:
-                                    confidences.append(float(box_conf.tolist()[0]))
-                                except Exception:  # noqa: BLE001
-                                    pass
-
-                    if confidences:
-                        confidence_avg = sum(confidences) / len(confidences)
-                else:
-                    conteo = 0
-
-                if conteo is None:
-                    conteo = len(bounding_boxes)
-            else:
-                if settings.environment == "production":
-                    raise AppException(
-                        message="Modelo de inventario no disponible en producción",
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    )
-                if not settings.yolo_mock:
-                    raise AppException(
-                        message=(
-                            "Modelo de inventario no disponible y fallback mock deshabilitado"
-                        ),
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    )
-
-                conteo = _estimate_mock_count(image_bytes, image_width, image_height)
-                bounding_boxes = []
-                modo = "mock"
-                source = "mock"
-                warning = "resultado_no_confiable"
-        except Exception as exc:  # noqa: BLE001
-            if isinstance(exc, AppException):
-                raise
-
-            logger.warning(
-                "inventario_foto_inference_error request_id=%s filename=%s error=%s",
-                request_id,
-                file.filename or safe_filename,
-                exc,
-            )
-
-            if settings.environment == "production" or not settings.yolo_mock:
-                raise AppException(
-                    message="No fue posible procesar la imagen con el modelo de inventario",
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                ) from exc
-
-            conteo = _estimate_mock_count(image_bytes, image_width, image_height)
-            bounding_boxes = []
-            modo = "mock"
-            source = "mock"
-            warning = "resultado_no_confiable"
+        conteo, bounding_boxes, confidence_avg, modo, source, warning = _infer_conteo(
+            image_bytes, image_width, image_height, file_path, request_id
+        )
 
         inference_ms = (perf_counter() - started_at) * 1000
-
-        _record_recent_count(conteo or 0, request_id, source)
+        _record_recent_count(conteo, request_id, source)
         logger.info(
-            (
-                "inventario_foto_request request_id=%s filename=%s size_bytes=%s "
-                "dimensions=%sx%s format=%s inference_ms=%.2f detections=%s "
-                "confidence_avg=%s source=%s"
-            ),
+            "inventario_foto_request request_id=%s size_bytes=%s dimensions=%sx%s "
+            "format=%s inference_ms=%.2f detections=%s confidence_avg=%s source=%s",
             request_id,
-            file.filename or safe_filename,
             len(image_bytes),
             image_width,
             image_height,
