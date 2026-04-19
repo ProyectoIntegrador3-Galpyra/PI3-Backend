@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import AsyncSessionLocal
 from app.core.security import verify_token
 from app.modules.auth.models import Usuario
+from app.shared.enums import RolUsuario
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/auth/login",
@@ -60,3 +61,14 @@ async def get_current_user(
         )
 
     return user
+
+
+async def require_admin(
+    current_user: Usuario = Depends(get_current_user),
+) -> Usuario:
+    if current_user.rol != RolUsuario.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere rol de administrador",
+        )
+    return current_user
