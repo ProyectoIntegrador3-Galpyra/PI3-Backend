@@ -57,13 +57,13 @@ async def generar_reporte(
     description="Producción de huevos agrupada por período. Requiere rol ADMIN.",
 )
 async def reporte_produccion(
-    año: Annotated[int, Query(ge=2000, le=2100)],
+    anio: Annotated[int, Query(ge=2000, le=2100)],
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[Usuario, Depends(require_admin)],
     mes: Annotated[int | None, Query(ge=1, le=12)] = None,
     galpon_id: str | None = None,
 ) -> dict:
-    data = await ReportesAnalyticsService.produccion(db, año, mes, galpon_id)
+    data = await ReportesAnalyticsService.produccion(db, anio, mes, galpon_id)
     return success_response(message="Reporte de producción obtenido", data=data)
 
 
@@ -73,13 +73,13 @@ async def reporte_produccion(
     description="Consumo y costo de alimento agrupado por período. Requiere rol ADMIN.",
 )
 async def reporte_alimentacion(
-    año: Annotated[int, Query(ge=2000, le=2100)],
+    anio: Annotated[int, Query(ge=2000, le=2100)],
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[Usuario, Depends(require_admin)],
     mes: Annotated[int | None, Query(ge=1, le=12)] = None,
     galpon_id: str | None = None,
 ) -> dict:
-    data = await ReportesAnalyticsService.alimentacion(db, año, mes, galpon_id)
+    data = await ReportesAnalyticsService.alimentacion(db, anio, mes, galpon_id)
     return success_response(message="Reporte de alimentación obtenido", data=data)
 
 
@@ -89,13 +89,13 @@ async def reporte_alimentacion(
     description="Bajas y tasa de mortalidad agrupadas por período. Requiere rol ADMIN.",
 )
 async def reporte_mortalidad(
-    año: Annotated[int, Query(ge=2000, le=2100)],
+    anio: Annotated[int, Query(ge=2000, le=2100)],
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[Usuario, Depends(require_admin)],
     mes: Annotated[int | None, Query(ge=1, le=12)] = None,
     galpon_id: str | None = None,
 ) -> dict:
-    data = await ReportesAnalyticsService.mortalidad(db, año, mes, galpon_id)
+    data = await ReportesAnalyticsService.mortalidad(db, anio, mes, galpon_id)
     return success_response(message="Reporte de mortalidad obtenido", data=data)
 
 

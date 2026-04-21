@@ -16,7 +16,7 @@ class DashboardService:
     async def get_metrics(db: AsyncSession) -> dict:
         now = datetime.now(timezone.utc)
         inicio_mes = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        inicio_año = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        inicio_anio = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         inicio_hoy = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
         # Aves activas
@@ -67,10 +67,10 @@ class DashboardService:
         ) or 0.0
 
         # Gasto alimento este año
-        gasto_alimento_año = await db.scalar(
+        gasto_alimento_anio = await db.scalar(
             select(func.sum(AlimentacionRegistro.costo)).where(
                 AlimentacionRegistro.deleted_at.is_(None),
-                AlimentacionRegistro.fecha >= inicio_año,
+                AlimentacionRegistro.fecha >= inicio_anio,
                 AlimentacionRegistro.costo.is_not(None),
             )
         ) or 0.0
@@ -90,6 +90,6 @@ class DashboardService:
             "mortalidad_mes": int(mortalidad_mes),
             "tasa_mortalidad_mes": tasa_mortalidad_mes,
             "gasto_alimento_mes": float(gasto_alimento_mes),
-            "gasto_alimento_año": float(gasto_alimento_año),
+            "gasto_alimento_año": float(gasto_alimento_anio),
             "galpones_activos": int(galpones_activos),
         }

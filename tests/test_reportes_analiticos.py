@@ -41,7 +41,7 @@ async def datos_analiticos(seeded_galpon_lote):
         session.add_all([prod, ali, mov])
         await session.commit()
 
-    return {"galpon": galpon, "lote": lote, "año": ahora.year, "mes": ahora.month}
+    return {"galpon": galpon, "lote": lote, "anio": ahora.year, "mes": ahora.month}
 
 
 # ─── GET /api/reportes/produccion ────────────────────────────────────────────
@@ -49,9 +49,9 @@ async def datos_analiticos(seeded_galpon_lote):
 
 @pytest.mark.asyncio
 async def test_reporte_produccion_ok(client, auth_headers, datos_analiticos):
-    año = datos_analiticos["año"]
+    anio = datos_analiticos["anio"]
     response = await client.get(
-        f"/api/reportes/produccion?año={año}", headers=auth_headers
+        f"/api/reportes/produccion?anio={anio}", headers=auth_headers
     )
     assert response.status_code == 200
     body = response.json()
@@ -63,10 +63,10 @@ async def test_reporte_produccion_ok(client, auth_headers, datos_analiticos):
 
 @pytest.mark.asyncio
 async def test_reporte_produccion_con_mes(client, auth_headers, datos_analiticos):
-    año = datos_analiticos["año"]
+    anio = datos_analiticos["anio"]
     mes = datos_analiticos["mes"]
     response = await client.get(
-        f"/api/reportes/produccion?año={año}&mes={mes}", headers=auth_headers
+        f"/api/reportes/produccion?anio={anio}&mes={mes}", headers=auth_headers
     )
     assert response.status_code == 200
     assert response.json()["success"] is True
@@ -74,8 +74,7 @@ async def test_reporte_produccion_con_mes(client, auth_headers, datos_analiticos
 
 @pytest.mark.asyncio
 async def test_reporte_produccion_requiere_admin(client, seeded_galpon_lote):
-    # Sin token → 401
-    response = await client.get("/api/reportes/produccion?año=2026")
+    response = await client.get("/api/reportes/produccion?anio=2026")
     assert response.status_code == 401
 
 
@@ -84,9 +83,9 @@ async def test_reporte_produccion_requiere_admin(client, seeded_galpon_lote):
 
 @pytest.mark.asyncio
 async def test_reporte_alimentacion_ok(client, auth_headers, datos_analiticos):
-    año = datos_analiticos["año"]
+    anio = datos_analiticos["anio"]
     response = await client.get(
-        f"/api/reportes/alimentacion?año={año}", headers=auth_headers
+        f"/api/reportes/alimentacion?anio={anio}", headers=auth_headers
     )
     assert response.status_code == 200
     body = response.json()
@@ -96,14 +95,25 @@ async def test_reporte_alimentacion_ok(client, auth_headers, datos_analiticos):
     assert "costo_total" in body["data"][0]
 
 
+@pytest.mark.asyncio
+async def test_reporte_alimentacion_con_mes(client, auth_headers, datos_analiticos):
+    anio = datos_analiticos["anio"]
+    mes = datos_analiticos["mes"]
+    response = await client.get(
+        f"/api/reportes/alimentacion?anio={anio}&mes={mes}", headers=auth_headers
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+
 # ─── GET /api/reportes/mortalidad ────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_reporte_mortalidad_ok(client, auth_headers, datos_analiticos):
-    año = datos_analiticos["año"]
+    anio = datos_analiticos["anio"]
     response = await client.get(
-        f"/api/reportes/mortalidad?año={año}", headers=auth_headers
+        f"/api/reportes/mortalidad?anio={anio}", headers=auth_headers
     )
     assert response.status_code == 200
     body = response.json()
@@ -111,6 +121,39 @@ async def test_reporte_mortalidad_ok(client, auth_headers, datos_analiticos):
     assert len(body["data"]) >= 1
     assert "total_bajas" in body["data"][0]
     assert "tasa_mortalidad" in body["data"][0]
+
+
+@pytest.mark.asyncio
+async def test_reporte_mortalidad_con_mes(client, auth_headers, datos_analiticos):
+    anio = datos_analiticos["anio"]
+    mes = datos_analiticos["mes"]
+    response = await client.get(
+        f"/api/reportes/mortalidad?anio={anio}&mes={mes}", headers=auth_headers
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_reporte_mortalidad_filtro_galpon(client, auth_headers, datos_analiticos):
+    anio = datos_analiticos["anio"]
+    galpon_id = datos_analiticos["galpon"].id
+    response = await client.get(
+        f"/api/reportes/mortalidad?anio={anio}&galpon_id={galpon_id}",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_reporte_mortalidad_galpon_sin_lotes(client, auth_headers):
+    response = await client.get(
+        "/api/reportes/mortalidad?anio=2020&galpon_id=galpon-inexistente",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["data"] == []
 
 
 # ─── GET /api/reportes/inventario ────────────────────────────────────────────

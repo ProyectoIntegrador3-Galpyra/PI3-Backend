@@ -63,7 +63,7 @@ async def get_current_user(
     return user
 
 
-async def require_admin(
+def require_admin(
     current_user: Usuario = Depends(get_current_user),
 ) -> Usuario:
     if current_user.rol != RolUsuario.ADMIN:

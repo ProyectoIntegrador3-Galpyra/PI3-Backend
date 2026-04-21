@@ -8,11 +8,10 @@ from app.modules.galpones.models import Galpon
 from app.shared.enums import EstadoLote, TipoMovimientoAve
 
 
-def _periodo_label(mes: int | None, año_val: int, mes_val: int, dia_val: int | None = None) -> str:
-    """Formatea período como YYYY-MM o YYYY-MM-DD según el nivel de agrupación."""
+def _periodo_label(anio_val: int, mes_val: int, dia_val: int | None = None) -> str:
     if dia_val is not None:
-        return f"{año_val:04d}-{mes_val:02d}-{dia_val:02d}"
-    return f"{año_val:04d}-{mes_val:02d}"
+        return f"{anio_val:04d}-{mes_val:02d}-{dia_val:02d}"
+    return f"{anio_val:04d}-{mes_val:02d}"
 
 
 class ReportesAnalyticsService:
@@ -20,7 +19,7 @@ class ReportesAnalyticsService:
     @staticmethod
     async def produccion(
         db: AsyncSession,
-        año: int,
+        anio: int,
         mes: int | None,
         galpon_id: str | None,
     ) -> list[dict]:
@@ -28,7 +27,7 @@ class ReportesAnalyticsService:
 
         filters = [
             ProduccionHuevo.deleted_at.is_(None),
-            cast(extract("year", ProduccionHuevo.fecha), Integer) == año,
+            cast(extract("year", ProduccionHuevo.fecha), Integer) == anio,
         ]
         if mes is not None:
             filters.append(cast(extract("month", ProduccionHuevo.fecha), Integer) == mes)
@@ -42,7 +41,7 @@ class ReportesAnalyticsService:
             day_col = cast(extract("day", ProduccionHuevo.fecha), Integer)
             result = await db.execute(
                 select(
-                    year_col.label("año"),
+                    year_col.label("anio"),
                     month_col.label("mes"),
                     day_col.label("dia"),
                     func.sum(ProduccionHuevo.cantidad).label("total_huevos"),
@@ -55,7 +54,7 @@ class ReportesAnalyticsService:
             rows = result.all()
             return [
                 {
-                    "periodo": _periodo_label(mes, r.año, r.mes, r.dia),
+                    "periodo": _periodo_label(r.anio, r.mes, r.dia),
                     "total_huevos": int(r.total_huevos or 0),
                     "promedio_diario": round((r.total_huevos or 0) / max(r.registros, 1), 1),
                 }
@@ -64,7 +63,7 @@ class ReportesAnalyticsService:
         else:
             result = await db.execute(
                 select(
-                    year_col.label("año"),
+                    year_col.label("anio"),
                     month_col.label("mes"),
                     func.sum(ProduccionHuevo.cantidad).label("total_huevos"),
                     func.count(ProduccionHuevo.id).label("registros"),
@@ -76,7 +75,7 @@ class ReportesAnalyticsService:
             rows = result.all()
             return [
                 {
-                    "periodo": _periodo_label(None, r.año, r.mes),
+                    "periodo": _periodo_label(r.anio, r.mes),
                     "total_huevos": int(r.total_huevos or 0),
                     "promedio_diario": round((r.total_huevos or 0) / max(r.registros, 1), 1),
                 }
@@ -86,13 +85,13 @@ class ReportesAnalyticsService:
     @staticmethod
     async def alimentacion(
         db: AsyncSession,
-        año: int,
+        anio: int,
         mes: int | None,
         galpon_id: str | None,
     ) -> list[dict]:
         filters = [
             AlimentacionRegistro.deleted_at.is_(None),
-            cast(extract("year", AlimentacionRegistro.fecha), Integer) == año,
+            cast(extract("year", AlimentacionRegistro.fecha), Integer) == anio,
         ]
         if mes is not None:
             filters.append(cast(extract("month", AlimentacionRegistro.fecha), Integer) == mes)
@@ -106,7 +105,7 @@ class ReportesAnalyticsService:
             day_col = cast(extract("day", AlimentacionRegistro.fecha), Integer)
             group_cols = [year_col, month_col, day_col, AlimentacionRegistro.tipo_alimento]
             select_cols = [
-                year_col.label("año"),
+                year_col.label("anio"),
                 month_col.label("mes"),
                 day_col.label("dia"),
                 AlimentacionRegistro.tipo_alimento,
@@ -117,7 +116,7 @@ class ReportesAnalyticsService:
         else:
             group_cols = [year_col, month_col, AlimentacionRegistro.tipo_alimento]
             select_cols = [
-                year_col.label("año"),
+                year_col.label("anio"),
                 month_col.label("mes"),
                 AlimentacionRegistro.tipo_alimento,
                 func.sum(AlimentacionRegistro.cantidad_kg).label("total_kg"),
@@ -138,7 +137,7 @@ class ReportesAnalyticsService:
             dia = getattr(r, "dia", None)
             output.append(
                 {
-                    "periodo": _periodo_label(mes, r.año, r.mes, dia),
+                    "periodo": _periodo_label(r.anio, r.mes, dia),
                     "tipo_alimento": r.tipo_alimento,
                     "total_kg": round(float(r.total_kg or 0), 2),
                     "costo_total": round(float(r.costo_total or 0), 2),
@@ -149,14 +148,14 @@ class ReportesAnalyticsService:
     @staticmethod
     async def mortalidad(
         db: AsyncSession,
-        año: int,
+        anio: int,
         mes: int | None,
         galpon_id: str | None,
     ) -> list[dict]:
         filters = [
             MovimientoAve.deleted_at.is_(None),
             MovimientoAve.tipo_movimiento == TipoMovimientoAve.MORTALIDAD,
-            cast(extract("year", MovimientoAve.fecha), Integer) == año,
+            cast(extract("year", MovimientoAve.fecha), Integer) == anio,
         ]
         if mes is not None:
             filters.append(cast(extract("month", MovimientoAve.fecha), Integer) == mes)
@@ -180,7 +179,7 @@ class ReportesAnalyticsService:
             day_col = cast(extract("day", MovimientoAve.fecha), Integer)
             result = await db.execute(
                 select(
-                    year_col.label("año"),
+                    year_col.label("anio"),
                     month_col.label("mes"),
                     day_col.label("dia"),
                     func.sum(MovimientoAve.cantidad).label("total_bajas"),
@@ -192,7 +191,7 @@ class ReportesAnalyticsService:
         else:
             result = await db.execute(
                 select(
-                    year_col.label("año"),
+                    year_col.label("anio"),
                     month_col.label("mes"),
                     func.sum(MovimientoAve.cantidad).label("total_bajas"),
                 )
@@ -216,7 +215,7 @@ class ReportesAnalyticsService:
             bajas = int(r.total_bajas or 0)
             output.append(
                 {
-                    "periodo": _periodo_label(mes, r.año, r.mes, dia),
+                    "periodo": _periodo_label(r.anio, r.mes, dia),
                     "total_bajas": bajas,
                     "tasa_mortalidad": round((bajas / total_aves) * 100, 4),
                 }
