@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"\nimport pdfplumber, sys\nwith pdfplumber.open\\(r'C:/Users/parra/OneDrive/Documents/Backend-PI3/PI3-Backend/GALPyra_Requerimientos_Completo.pdf'\\) as pdf:\n    total = len\\(pdf.pages\\)\n    sys.stderr.write\\(f'Total paginas: {total}\\\\n'\\)\n    for i, page in enumerate\\(pdf.pages\\):\n        text = page.extract_text\\(\\)\n        if text:\n            encoded = text.encode\\('ascii', 'replace'\\).decode\\('ascii'\\)\n            print\\(f'--- PAGINA {i+1} ---'\\)\n            print\\(encoded\\)\n\" 2>&1)",
+      "Bash('C:\\\\Users\\\\parra\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\python.exe' -c ':*)",
+      "Bash(\"C:\\\\Users\\\\parra\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\python.exe\" -m pip install \"ultralytics>=8.0.0\")",
+      "Bash(\"C:\\\\Users\\\\parra\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\python.exe\" -m pytest --tb=short -q --import-mode=importlib)",
+      "Bash(python -m pytest --tb=short -q)"
+    ]
+  }
+}

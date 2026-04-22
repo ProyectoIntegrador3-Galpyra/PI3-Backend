@@ -1,140 +1,117 @@
-# PI3-Backend
-# Flujo de Trabajo Git
+# PI3-Back - GALPyra Backend
 
-Este documento describe el flujo de trabajo (workflow) para el manejo de ramas (branches) y fusiones (merges) en nuestro repositorio, asegurando un desarrollo organizado y una integración continua (Continuous Integration).
+Backend para GALPyra con FastAPI, SQLAlchemy 2.0 async, MySQL 8, Alembic y Pydantic v2.
 
-## Ramas Principales
+## Requisitos
 
-### `main` (Producción)
+- Python 3.11+
+- MySQL 8.0
 
-**Descripción:** Contiene la versión estable y en producción del sistema.
+## Estructura principal
 
-**Actualización:** Solo se actualiza mediante merge desde `develop` (para nuevas versiones) o `hotfix/*` (para correcciones urgentes) a través de pull requests (solicitudes de extracción) aprobadas y verificadas por GitHub Actions.
-
-**Restricciones:** No se realizan desarrollos directos en esta rama. Requiere pull requests para merge, con checks (verificaciones) de GitHub Actions (por ejemplo, tests o pruebas) aprobados.
-
-#### Flujo de Fusión (solo vía pull request):
-
-Para fusionar `develop` o `hotfix/*` a `main`:
-
-1. Abre una pull request desde la rama `develop` o `hotfix/fix-XYZ` hacia `main`
-2. GitHub Actions ejecutará los tests y otras verificaciones
-3. Una vez que todos los checks pasen y la pull request sea aprobada por un revisor, se podrá hacer el merge
-
-#### Etiquetar la versión:
-
-Después del merge a `main`, es una buena práctica crear un tag (etiqueta) en `main` para marcar la nueva versión. Esto se hace en tu repositorio local después de un `git pull` en `main` o directamente en la interfaz de GitHub.
-
-```bash
-git checkout main
-git pull # Para asegurarte de tener el último merge
-git tag vX.Y.Z
-git push origin vX.Y.Z # Sube el tag a GitHub
+```text
+PI3-Back/
+├── application.py
+├── requirements.txt
+├── .env.example
+├── Dockerfile
+├── docker-compose.yml
+├── alembic/
+├── app/
+└── tests/
 ```
 
-### `develop` (Desarrollo)
+## Configuracion
 
-**Descripción:** Contiene el código en desarrollo y pruebas.
-
-**Actualización:** Recibe los cambios de las ramas `feature/*` y `hotfix/*` a través de pull requests.
-
-**Restricciones:** Se mantiene siempre funcional. Requiere pull requests para merge, con checks de GitHub Actions (tests) aprobados.
-
-#### Flujo de Fusión desde `feature/*`:
-
-Una vez finalizado el desarrollo en `feature/nueva-funcionalidad`:
-
-1. Asegúrate de que tu rama esté actualizada en GitHub:
-   ```bash
-   git push origin feature/nueva-funcionalidad
-   ```
-
-2. Abre una pull request desde `feature/nueva-funcionalidad` hacia `develop`
-
-3. GitHub Actions ejecutará los tests configurados para `develop`
-
-4. Si los tests pasan y la pull request es aprobada, se puede hacer el merge
-
-5. Después del merge, puedes eliminar la rama local y remota:
-   ```bash
-   git branch -d feature/nueva-funcionalidad
-   git push origin --delete feature/nueva-funcionalidad
-   ```
-
-#### Crear una nueva rama de desarrollo desde `develop`:
+1. Copia variables de entorno:
 
 ```bash
-git checkout develop
-git pull # Asegúrate de tener la última versión de develop
-git checkout -b feature/nueva-funcionalidad
+cp .env.example .env
 ```
 
-## Ramas Temporales
+2. Crea entorno virtual e instala dependencias:
 
-Estas ramas son temporales y se crean según la necesidad, con un enfoque estricto en el uso de pull requests para sus fusiones.
+```bash
+python -m venv .venv
+. .venv/Scripts/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-### `feature/*` (Nuevas Funcionalidades)
+## Ejecutar con Docker
 
-**Descripción:** Se crean desde `develop` para desarrollar nuevas funcionalidades.
+```bash
+docker compose up -d --build
+```
 
-#### Flujo:
+API disponible en `http://localhost:8000`.
 
-1. **Crear una nueva rama para una funcionalidad:**
-   ```bash
-   git checkout develop
-   git pull # Siempre actualiza develop antes de crear una feature branch
-   git checkout -b feature/nombre-de-la-funcionalidad
-   ```
+## Ejecucion local
 
-2. **Desarrolla y commitea (commit o confirma) tus cambios**
+1. Levanta MySQL (local o con docker).
+2. Aplica migraciones.
+3. Ejecuta seed.
+4. Inicia FastAPI.
 
-3. **Haz push de tu rama a GitHub:**
-   ```bash
-   git push origin feature/nombre-de-la-funcionalidad
-   ```
+```bash
+alembic upgrade head
+python -m app.core.seed
+uvicorn app.main:app --reload --port 8000
+```
 
-4. **Abrir una pull request:** Desde `feature/nombre-de-la-funcionalidad` hacia `develop`
+## Migraciones Alembic
 
-5. **Revisión y GitHub Actions:** Espera que GitHub Actions ejecute los tests y que tu pull request sea revisada y aprobada
+Crear migracion:
 
-6. **Merge:** Una vez aprobada, fusiona la pull request a `develop`
+```bash
+alembic revision --autogenerate -m "descripcion_cambio"
+```
 
-7. **Eliminar la rama (local y remota):**
-   ```bash
-   git branch -d feature/nombre-de-la-funcionalidad
-   git push origin --delete feature/nombre-de-la-funcionalidad
-   ```
+Aplicar migraciones:
 
-### `hotfix/*` (Correcciones Urgentes en Producción)
+```bash
+alembic upgrade head
+```
 
-**Descripción:** Se crean desde `main` para corregir errores críticos que están en producción.
+Revertir una migracion:
 
-#### Flujo:
+```bash
+alembic downgrade -1
+```
 
-1. **Crear una rama hotfix:**
-   ```bash
-   git checkout main
-   git pull # Asegúrate de tener la última versión de main
-   git checkout -b hotfix/descripcion-del-arreglo
-   ```
+Revertir a version especifica:
 
-2. **Aplica el fix (arreglo) y commitea**
+```bash
+alembic downgrade <revision_id>
+```
 
-3. **Haz push de tu rama a GitHub:**
-   ```bash
-   git push origin hotfix/descripcion-del-arreglo
-   ```
+## Usuario admin seed
 
-4. **Abrir pull request a main:** Desde `hotfix/descripcion-del-arreglo` hacia `main`
+- email: `admin@galpyra.com`
+- password: `Admin123*`
+- nombre: `Administrador GALPyra`
+- rol: `ADMIN`
 
-5. **Revisión y GitHub Actions (main):** Espera que los tests de GitHub Actions pasen y que la pull request sea aprobada
+## Modo desarrollo abierto
 
-6. **Merge a main:** Una vez aprobada, fusiona la pull request a `main`
+Los endpoints estan abiertos para facilitar integracion con Flutter y Postman.
 
-7. **Sincronizar develop:** Abre OTRA pull request desde `hotfix/descripcion-del-arreglo` hacia `develop`. Esto es crucial para asegurar que el fix también esté en el desarrollo futuro
+- El flujo JWT (login/refresh/logout) ya esta implementado.
+- `get_current_user` ya existe en `app/core/dependencies.py`.
+- Para endurecer seguridad luego, agrega `Depends(get_current_user)` en los routers que correspondan.
 
-8. **Revisión y GitHub Actions (develop):** Espera que los tests de GitHub Actions pasen y que la pull request sea aprobada
+## Pruebas
 
-9. **Merge a develop:** Una vez aprobada, fusiona la pull request a `develop`
+```bash
+pytest -q
+```
 
-10. **Eliminar la rama (local y remota):**
+## Documentacion OpenAPI
+
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
+
+## Checklist de cierre
+
+- Guia operativa para integracion con Flutter y despliegue en AWS: [docs/checklist-preintegracion-despliegue.md](docs/checklist-preintegracion-despliegue.md)
+- Guia rapida de variables por ambiente para Flutter: [docs/front-envs-flutter.md](docs/front-envs-flutter.md)

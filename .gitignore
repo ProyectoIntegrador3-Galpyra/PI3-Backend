@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# GALPyra backend extras
+alembic/versions/__pycache__/
+tmp_uploads/
+*.db
+.DS_Store
+Thumbs.db
