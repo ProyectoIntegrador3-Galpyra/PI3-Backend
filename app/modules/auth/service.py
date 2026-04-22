@@ -44,7 +44,7 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
 
-        access_token = create_access_token(subject=user.id)
+        access_token = create_access_token(subject=user.id, rol=user.rol.value)
         refresh_token, refresh_hash, refresh_expires_at = create_refresh_token()
 
         db_refresh = RefreshToken(
@@ -104,7 +104,7 @@ class AuthService:
 
         refresh_row.revoked_at = now
 
-        new_access_token = create_access_token(subject=user.id)
+        new_access_token = create_access_token(subject=user.id, rol=user.rol.value)
         new_refresh_token, new_hash, new_expires_at = create_refresh_token()
         db.add(
             RefreshToken(

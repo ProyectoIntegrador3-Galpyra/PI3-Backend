@@ -24,7 +24,11 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def create_access_token(subject: str, expires_minutes: int | None = None) -> str:
+def create_access_token(
+    subject: str,
+    rol: str | None = None,
+    expires_minutes: int | None = None,
+) -> str:
     expire_delta = timedelta(
         minutes=expires_minutes or settings.access_token_expire_minutes,
     )
@@ -36,6 +40,8 @@ def create_access_token(subject: str, expires_minutes: int | None = None) -> str
         "exp": expire_at,
         "iat": _utc_now(),
     }
+    if rol is not None:
+        payload["rol"] = rol
 
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 

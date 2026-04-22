@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.responses import error_response, success_response
+from app.modules.admin.router import router as admin_router
 from app.modules.alimentacion.router import router as alimentacion_router
 from app.modules.auth.router import router as auth_router
 from app.modules.aves.router import router as aves_router
@@ -124,6 +125,7 @@ def create_app() -> FastAPI:
         )
 
     api_router.include_router(auth_router)
+    api_router.include_router(admin_router)
     api_router.include_router(galpones_router)
     api_router.include_router(aves_router)
     api_router.include_router(produccion_router)
