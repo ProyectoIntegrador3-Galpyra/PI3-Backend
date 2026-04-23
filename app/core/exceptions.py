@@ -42,7 +42,7 @@ def validation_exception_handler(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content=error_response(
             message="Error de validacion",
-            error=exc.errors(),
+            error=[{k: str(v) if isinstance(v, bytes) else v for k, v in e.items()} for e in exc.errors()],
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         ),
     )
