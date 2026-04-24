@@ -249,14 +249,9 @@ def _mock_fallback(
     image_width: int,
     image_height: int,
 ) -> tuple[int, list[dict], None, str, str, str]:
-    if settings.environment == "production":
-        raise AppException(
-            message="Modelo de inventario no disponible en producción",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
     if not settings.yolo_mock:
         raise AppException(
-            message="Modelo de inventario no disponible y fallback mock deshabilitado",
+            message="Modelo de inventario no disponible",
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
     conteo = _estimate_mock_count(image_bytes, image_width, image_height)
