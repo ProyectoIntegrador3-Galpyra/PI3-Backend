@@ -280,7 +280,7 @@ def _infer_conteo(
             request_id,
             type(exc).__name__,
         )
-        if settings.environment == "production" or not settings.yolo_mock:
+        if not settings.yolo_mock:
             raise AppException(
                 message="No fue posible procesar la imagen con el modelo de inventario",
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
