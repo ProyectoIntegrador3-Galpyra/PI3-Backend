@@ -23,7 +23,7 @@ from app.shared.enums import EstadoInventarioFoto
 
 logger = logging.getLogger(__name__)
 _YOLO_MODEL = None
-_YOLO_MODEL_PATH = Path(__file__).resolve().parent.parent.parent / "models" / "yolov8n.pt"
+_YOLO_MODEL_PATH = Path(__file__).resolve().parent.parent.parent.parent / "models" / "yolov8n.pt"
 _BIRD_CLASS_ID = 14
 _RECENT_COUNTS: deque[tuple[datetime, int]] = deque()
 _COUNT_WINDOW_MINUTES = 15
