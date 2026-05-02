@@ -420,12 +420,7 @@ class InventarioFotoService:
                     type(exc).__name__,
                 )
 
-        return ConfirmarInventarioResponse(
-            confirmado=True,
-            lote_id=job.lote_id,
-            cantidad_confirmada=payload.conteo_confirmado,
-            job_id=job.id,
-        )
+        return InventarioFotoJobOut.model_validate(job)
 
     @staticmethod
     async def _upload_image_to_s3(

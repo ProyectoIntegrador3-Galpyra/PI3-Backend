@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime
+from sqlalchemy import Boolean, DateTime, Column
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -32,6 +32,10 @@ class Usuario(BaseModel):
     )
     galpones = relationship("Galpon", back_populates="propietario")
     reportes = relationship("ReporteGenerado", back_populates="generador")
+    reset_tokens = relationship(
+        "PasswordResetToken",
+        back_populates="usuario",
+    )
 
 
 class RefreshToken(BaseModel):
@@ -59,28 +63,22 @@ class RefreshToken(BaseModel):
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
-    __table_args__ = (
-        UniqueConstraint("token", name="uq_password_reset_tokens_token"),
-    )
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid4())
+    id = Column(
+        String(36), 
+        primary_key=True, 
+        default=lambda: str(uuid4())
     )
-    usuario_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("usuarios.id"),
-        index=True,
-        nullable=False,
+    usuario_id = Column(
+        String(36), 
+        ForeignKey("usuarios.id"), 
+        nullable=False
     )
-    token: Mapped[str] = mapped_column(String(64), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+    token = Column(String(64), unique=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    usado = Column(Boolean, default=False, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(timezone.utc)
     )
-    usado: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False,
-    )
-
-    usuario = relationship("Usuario")
+    usuario = relationship("Usuario", back_populates="reset_tokens")

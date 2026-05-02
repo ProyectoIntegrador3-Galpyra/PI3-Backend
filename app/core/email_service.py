@@ -1,23 +1,27 @@
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from app.core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def _get_mail_config() -> ConnectionConfig:
+def _get_mail_config() -> "ConnectionConfig" | None:
+  try:
+    from fastapi_mail import ConnectionConfig  # type: ignore
+
     return ConnectionConfig(
-        MAIL_USERNAME=settings.smtp_user,
-        MAIL_PASSWORD=settings.smtp_password,
-        MAIL_FROM=settings.smtp_from or settings.smtp_user,
-        MAIL_PORT=settings.smtp_port,
-        MAIL_SERVER=settings.smtp_host,
-        MAIL_FROM_NAME=settings.smtp_from_name,
-        MAIL_STARTTLS=True,
-        MAIL_SSL_TLS=False,
-        USE_CREDENTIALS=True,
-        VALIDATE_CERTS=True,
+      MAIL_USERNAME=settings.smtp_user,
+      MAIL_PASSWORD=settings.smtp_password,
+      MAIL_FROM=settings.smtp_from or settings.smtp_user,
+      MAIL_PORT=settings.smtp_port,
+      MAIL_SERVER=settings.smtp_host,
+      MAIL_FROM_NAME=getattr(settings, "smtp_from_name", None),
+      MAIL_STARTTLS=True,
+      MAIL_SSL_TLS=False,
+      USE_CREDENTIALS=True,
+      VALIDATE_CERTS=True,
     )
+  except Exception:
+    return None
 
 
 def _build_reset_html(token: str, nombre: str) -> str:
@@ -90,29 +94,36 @@ def _build_reset_html(token: str, nombre: str) -> str:
 
 
 async def send_password_reset_email(
-    email_to: str,
-    nombre: str,
-    token: str,
+  email_to: str,
+  nombre: str,
+  token: str,
 ) -> bool:
-    if not settings.smtp_user or not settings.smtp_password:
-        logger.warning(
-            "SMTP no configurado. Email NO enviado a %s. Token: %s",
-            email_to,
-            token,
-        )
-        return False
-    try:
-        conf = _get_mail_config()
-        fm = FastMail(conf)
-        message = MessageSchema(
-            subject="Recupera tu contraseña — GALPyra",
-            recipients=[email_to],
-            body=_build_reset_html(token, nombre),
-            subtype=MessageType.html,
-        )
-        await fm.send_message(message)
-        logger.info("Email de recuperación enviado a %s", email_to)
-        return True
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Error enviando email a %s: %s", email_to, type(exc).__name__)
-        return False
+  if not settings.smtp_user or not settings.smtp_password:
+    logger.warning(
+      "SMTP no configurado. Email NO enviado a %s. Token: %s",
+      email_to,
+      token,
+    )
+    return False
+
+  conf = _get_mail_config()
+  if conf is None:
+    logger.warning("fastapi-mail no disponible. Email NO enviado to %s", email_to)
+    return False
+
+  try:
+    from fastapi_mail import FastMail, MessageSchema, MessageType  # type: ignore
+
+    fm = FastMail(conf)
+    message = MessageSchema(
+      subject="Recupera tu contraseña — GALPyra",
+      recipients=[email_to],
+      body=_build_reset_html(token, nombre),
+      subtype=MessageType.html,
+    )
+    await fm.send_message(message)
+    logger.info("Email de recuperación enviado a %s", email_to)
+    return True
+  except Exception as exc:  # noqa: BLE001
+    logger.error("Error enviando email a %s: %s", email_to, type(exc).__name__)
+    return False

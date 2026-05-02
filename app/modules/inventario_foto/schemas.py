@@ -31,7 +31,7 @@ class InventarioConfirmarRequest(BaseModel):
 
 class ConfirmarInventarioResponse(BaseModel):
     confirmado: bool = True
-    lote_id: str | None
+    lote_id: str
     cantidad_confirmada: int
     job_id: str
 

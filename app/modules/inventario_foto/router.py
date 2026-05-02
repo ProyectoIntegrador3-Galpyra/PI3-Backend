@@ -50,8 +50,16 @@ async def confirmar_inventario_foto(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[Usuario, Depends(get_current_user)],
 ) -> dict:
-    data = await InventarioFotoService.confirmar_conteo(db, payload)
-    return success_response(message="Conteo confirmado", data=data.model_dump())
+    job = await InventarioFotoService.confirmar_conteo(db, payload)
+    return success_response(
+        data=ConfirmarInventarioResponse(
+            confirmado=True,
+            lote_id=str(job.lote_id),
+            cantidad_confirmada=job.conteo_confirmado,
+            job_id=str(job.id),
+        ).model_dump(),
+        message="Conteo confirmado exitosamente",
+    )
 
 
 @router.get(
