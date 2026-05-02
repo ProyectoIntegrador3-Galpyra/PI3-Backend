@@ -31,3 +31,7 @@ class ReporteOut(ReporteBase):
 
     id: str
     created_at: datetime
+
+
+class DescargarReporteResponse(BaseModel):
+    url: str = Field(description="URL presignada S3 válida por 15 minutos")

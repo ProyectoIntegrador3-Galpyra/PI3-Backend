@@ -80,3 +80,157 @@ async def test_me_con_token_valido(client, seeded_admin):
     body = response.json()
     assert body["success"] is True
     assert body["data"]["email"] == seeded_admin.email
+
+
+@pytest.mark.asyncio
+async def test_forgot_password_email_existente(client, seeded_admin):
+    response = await client.post(
+        "/api/auth/forgot-password",
+        json={"email": seeded_admin.email},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert "Si el correo está registrado" in body["message"]
+
+
+@pytest.mark.asyncio
+async def test_forgot_password_email_inexistente(client):
+    response = await client.post(
+        "/api/auth/forgot-password",
+        json={"email": "nobody@example.com"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert "Si el correo está registrado" in body["message"]
+
+
+@pytest.mark.asyncio
+async def test_reset_password_token_valido(client, seeded_admin):
+    from app.modules.auth.models import PasswordResetToken
+    from sqlalchemy import select
+    from datetime import timedelta
+
+    # Generar token de reset
+    import secrets
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    async with TestSessionLocal() as session:
+        db_token = PasswordResetToken(
+            usuario_id=seeded_admin.id,
+            token=token,
+            expires_at=expires_at,
+        )
+        session.add(db_token)
+        await session.commit()
+
+    # Reset password
+    new_password = "NewSecure123!"
+    response = await client.post(
+        "/api/auth/reset-password",
+        json={"token": token, "nueva_password": new_password},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert "Contraseña actualizada" in body["message"]
+
+    # Verificar que el token fue marcado como usado
+    async with TestSessionLocal() as session:
+        result = await session.execute(
+            select(PasswordResetToken).where(PasswordResetToken.token == token)
+        )
+        token_row = result.scalar_one_or_none()
+        assert token_row.usado is True
+
+
+@pytest.mark.asyncio
+async def test_reset_password_token_expirado(client, seeded_admin):
+    from app.modules.auth.models import PasswordResetToken
+    from sqlalchemy import select
+    from datetime import timedelta
+
+    # Generar token expirado
+    import secrets
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+
+    async with TestSessionLocal() as session:
+        db_token = PasswordResetToken(
+            usuario_id=seeded_admin.id,
+            token=token,
+            expires_at=expires_at,
+        )
+        session.add(db_token)
+        await session.commit()
+
+    # Intentar reset
+    response = await client.post(
+        "/api/auth/reset-password",
+        json={"token": token, "nueva_password": "NewSecure123!"},
+    )
+    assert response.status_code == 400
+    body = response.json()
+    assert body["success"] is False
+    assert "Token inválido o expirado" in body["message"]
+
+
+@pytest.mark.asyncio
+async def test_reset_password_token_ya_usado(client, seeded_admin):
+    from app.modules.auth.models import PasswordResetToken
+    from sqlalchemy import select
+    from datetime import timedelta
+
+    # Generar token ya usado
+    import secrets
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    async with TestSessionLocal() as session:
+        db_token = PasswordResetToken(
+            usuario_id=seeded_admin.id,
+            token=token,
+            expires_at=expires_at,
+            usado=True,
+        )
+        session.add(db_token)
+        await session.commit()
+
+    # Intentar reset
+    response = await client.post(
+        "/api/auth/reset-password",
+        json={"token": token, "nueva_password": "NewSecure123!"},
+    )
+    assert response.status_code == 400
+    body = response.json()
+    assert body["success"] is False
+    assert "Token inválido o expirado" in body["message"]
+
+
+@pytest.mark.asyncio
+async def test_reset_password_password_corta(client, seeded_admin):
+    from app.modules.auth.models import PasswordResetToken
+    from datetime import timedelta
+
+    # Generar token válido
+    import secrets
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    async with TestSessionLocal() as session:
+        db_token = PasswordResetToken(
+            usuario_id=seeded_admin.id,
+            token=token,
+            expires_at=expires_at,
+        )
+        session.add(db_token)
+        await session.commit()
+
+    # Intentar reset con password corta (< 8 caracteres)
+    response = await client.post(
+        "/api/auth/reset-password",
+        json={"token": token, "nueva_password": "Short1!"},
+    )
+    assert response.status_code == 422

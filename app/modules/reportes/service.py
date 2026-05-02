@@ -17,7 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.modules.reportes.models import ReporteGenerado
-from app.modules.reportes.schemas import ReporteGenerarRequest, ReporteOut
+from app.modules.reportes.schemas import (
+    ReporteGenerarRequest,
+    ReporteOut,
+    DescargarReporteResponse,
+)
+from app.modules.auth.models import Usuario
 
 logger = logging.getLogger(__name__)
 
@@ -176,3 +181,101 @@ class ReportesService:
         await db.commit()
         await db.refresh(reporte)
         return ReporteOut.model_validate(reporte)
+
+    @staticmethod
+    async def get_download_url(
+        db: AsyncSession,
+        reporte_id: str,
+        current_user: Usuario,
+    ) -> DescargarReporteResponse:
+        """Genera URL presignada S3 para descargar el reporte."""
+        # Obtener reporte
+        result = await db.execute(
+            select(ReporteGenerado).where(
+                ReporteGenerado.id == reporte_id,
+                ReporteGenerado.deleted_at.is_(None),
+            )
+        )
+        reporte = result.scalar_one_or_none()
+        if reporte is None:
+            raise AppException(
+                message="Reporte no encontrado",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Verificar que el usuario tiene acceso (es ADMIN o es el generador)
+        from app.shared.enums import RolUsuario
+        if (
+            current_user.rol != RolUsuario.ADMIN
+            and reporte.generado_por != current_user.id
+        ):
+            raise AppException(
+                message="No tienes permiso para descargar este reporte",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Validar que S3 está configurado
+        if not all(
+            [
+                settings.aws_s3_bucket,
+                settings.aws_region,
+                settings.aws_access_key_id,
+                settings.aws_secret_access_key,
+            ]
+        ):
+            raise AppException(
+                message="El servicio de almacenamiento no está disponible",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        # Generar URL presignada
+        try:
+            s3_client = boto3.client(
+                "s3",
+                region_name=settings.aws_region,
+                aws_access_key_id=settings.aws_access_key_id,
+                aws_secret_access_key=settings.aws_secret_access_key,
+            )
+
+            # El url_archivo ya contiene la ruta S3 completa o presignada
+            # Extraer el S3 key de la URL si es necesario
+            url_archivo = reporte.url_archivo
+            s3_key = None
+
+            # Si la URL es un presigned_url de S3, ir directamente
+            if url_archivo and "s3" in url_archivo and "amazonaws" in url_archivo:
+                # Ya es una URL presignada válida
+                return DescargarReporteResponse(url=url_archivo)
+
+            # Si es una ruta local o relativa, construir la key
+            # Ejemplo: /reportes/produccion_1234.pdf → reportes/produccion_1234.pdf
+            if url_archivo:
+                s3_key = url_archivo.lstrip("/")
+
+            if not s3_key:
+                raise AppException(
+                    message="El reporte no tiene URL de archivo válida",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            params = {
+                "Bucket": settings.aws_s3_bucket,
+                "Key": s3_key,
+            }
+            if settings.aws_s3_expected_bucket_owner:
+                params["ExpectedBucketOwner"] = settings.aws_s3_expected_bucket_owner
+
+            presigned_url = s3_client.generate_presigned_url(
+                "get_object",
+                Params=params,
+                ExpiresIn=900,  # 15 minutos
+            )
+
+            return DescargarReporteResponse(url=presigned_url)
+
+        except ClientError as exc:
+            logger.error("Error al generar URL presignada: %s", exc)
+            raise AppException(
+                message="Error al generar URL de descarga",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            ) from exc

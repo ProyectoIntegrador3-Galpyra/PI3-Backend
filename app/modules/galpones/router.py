@@ -1,13 +1,19 @@
 # CORRECCIÓN APLICADA: [1 — Autenticación en endpoints]
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user, get_db
 from app.core.responses import success_response
 from app.modules.auth.models import Usuario
-from app.modules.galpones.schemas import GalponCreate, GalponUpdate
+from app.modules.galpones.schemas import (
+    GalponCreate,
+    GalponUpdate,
+    TurnoActivoAssign,
+    TurnoActivoResponse,
+    TurnoHistorialItem,
+)
 from app.modules.galpones.service import GalponService
 
 router = APIRouter(prefix="/galpones", tags=["Galpones"])
@@ -101,3 +107,53 @@ async def delete_galpon(
 ) -> dict:
     await GalponService.delete(db, galpon_id)
     return success_response(message="Galpon eliminado", data=None)
+
+
+@router.get(
+    "/{galpon_id}/turno-activo",
+    summary="Obtener turno activo actual",
+    description="Retorna la asignación de operario para el turno actual.",
+)
+async def get_turno_activo(
+    galpon_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[Usuario, Depends(get_current_user)],
+) -> dict:
+    data = await GalponService.get_turno_activo(db, galpon_id)
+    return success_response(
+        message="Turno activo obtenido",
+        data=data.model_dump() if data else None,
+    )
+
+
+@router.post(
+    "/{galpon_id}/turno-activo",
+    summary="Asignar operario a turno",
+    description="Solo ADMIN puede asignar operarios a turnos (requiere JWT).",
+)
+async def assign_turno(
+    galpon_id: str,
+    payload: TurnoActivoAssign,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[Usuario, Depends(get_current_user)],
+) -> dict:
+    await GalponService.assign_turno(db, galpon_id, payload, current_user)
+    return success_response(message="Turno asignado", data=None)
+
+
+@router.get(
+    "/{galpon_id}/turnos-historial",
+    summary="Historial de asignaciones de turno",
+    description="Lista últimas asignaciones para trazabilidad.",
+)
+async def get_turnos_historial(
+    galpon_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[Usuario, Depends(get_current_user)],
+    limit: int = Query(default=30, ge=1, le=100),
+) -> dict:
+    data = await GalponService.get_turnos_historial(db, galpon_id, limit)
+    return success_response(
+        message="Historial obtenido",
+        data=[item.model_dump() for item in data],
+    )

@@ -43,3 +43,9 @@ class EstadoInventarioFoto(str, Enum):
     PROCESADO = "PROCESADO"
     CONFIRMADO = "CONFIRMADO"
     ERROR = "ERROR"
+
+
+class Turno(str, Enum):
+    MAÑANA = "mañana"
+    TARDE = "tarde"
+    NOCHE = "noche"

@@ -40,6 +40,17 @@ class Settings(BaseSettings):
         alias="AWS_S3_EXPECTED_BUCKET_OWNER",
     )
 
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str = Field(default="", alias="SMTP_USER")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_from: str = Field(default="noreply@galpyra.com", alias="SMTP_FROM")
+    frontend_url: str = Field(default="", alias="FRONTEND_URL")
+    password_reset_token_expire_minutes: int = Field(
+        default=15,
+        alias="PASSWORD_RESET_TOKEN_EXPIRE_MINUTES",
+    )
+
     yolo_mock: bool = Field(
         default=False,
         alias="YOLO_MOCK",

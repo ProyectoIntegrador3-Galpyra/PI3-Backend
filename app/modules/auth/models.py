@@ -54,3 +54,24 @@ class RefreshToken(BaseModel):
     )
 
     usuario = relationship("Usuario", back_populates="refresh_tokens")
+
+
+class PasswordResetToken(BaseModel):
+    __tablename__ = "password_reset_tokens"
+    __table_args__ = (
+        UniqueConstraint("token", name="uq_password_reset_tokens_token"),
+    )
+
+    usuario_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("usuarios.id"),
+        index=True,
+        nullable=False,
+    )
+    token: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    usado: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    usuario = relationship("Usuario")

@@ -23,9 +23,9 @@ from app.core.dependencies import get_db  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
 from app.modules.alimentacion.models import AlimentacionRegistro  # noqa: E402
-from app.modules.auth.models import RefreshToken, Usuario  # noqa: E402
+from app.modules.auth.models import RefreshToken, Usuario, PasswordResetToken  # noqa: E402
 from app.modules.aves.models import LoteAve, MovimientoAve  # noqa: E402
-from app.modules.galpones.models import Galpon  # noqa: E402
+from app.modules.galpones.models import Galpon, GalponTurno  # noqa: E402
 from app.modules.inventario_foto.models import InventarioFotoJob  # noqa: E402
 from app.modules.produccion.models import ProduccionHuevo  # noqa: E402
 from app.modules.reportes.models import ReporteGenerado  # noqa: E402
@@ -77,8 +77,10 @@ async def clean_db():
             ProduccionHuevo,
             MovimientoAve,
             LoteAve,
+            GalponTurno,
             Galpon,
             RefreshToken,
+            PasswordResetToken,
             Usuario,
         ]:
             await session.execute(delete(model))

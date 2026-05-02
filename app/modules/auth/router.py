@@ -6,7 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_user, get_db
 from app.core.responses import success_response
 from app.modules.auth.models import Usuario
-from app.modules.auth.schemas import LoginRequest, LogoutRequest, RefreshRequest
+from app.modules.auth.schemas import (
+    LoginRequest,
+    LogoutRequest,
+    RefreshRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+)
 from app.modules.auth.service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -61,3 +67,29 @@ async def me(
 ) -> dict:
     user = await AuthService.me(current_user)
     return success_response(message="Perfil obtenido", data=user.model_dump())
+
+
+@router.post(
+    "/forgot-password",
+    summary="Solicitar reset de contraseña",
+    description="Envía un enlace de reset de contraseña al email registrado.",
+)
+async def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    data = await AuthService.forgot_password(db, payload)
+    return success_response(message=data.message, data=None)
+
+
+@router.post(
+    "/reset-password",
+    summary="Restablecer contraseña",
+    description="Cambia la contraseña usando un token válido.",
+)
+async def reset_password(
+    payload: ResetPasswordRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    data = await AuthService.reset_password(db, payload)
+    return success_response(message=data.message, data=None)

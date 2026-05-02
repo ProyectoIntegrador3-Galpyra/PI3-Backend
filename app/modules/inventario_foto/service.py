@@ -10,6 +10,7 @@ from uuid import uuid4
 from fastapi import UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+import boto3
 
 from app.core.config import settings
 from app.core.exceptions import AppException
@@ -20,6 +21,7 @@ from app.modules.inventario_foto.schemas import (
     InventarioProcesarResponse,
 )
 from app.shared.enums import EstadoInventarioFoto
+from app.modules.aves.models import LoteAve
 
 logger = logging.getLogger(__name__)
 _YOLO_MODEL = None
@@ -386,10 +388,87 @@ class InventarioFotoService:
         job.estado = EstadoInventarioFoto.CONFIRMADO
         job.confirmado_en = datetime.now(timezone.utc)
 
+        # Actualizar cantidad_actual del lote si hay lote_id
+        if job.lote_id:
+            lote_result = await db.execute(
+                select(LoteAve).where(
+                    LoteAve.id == job.lote_id,
+                    LoteAve.deleted_at.is_(None),
+                )
+            )
+            lote = lote_result.scalar_one_or_none()
+            if lote is not None:
+                lote.cantidad_actual = payload.conteo_confirmado
+                lote.updated_at = datetime.now(timezone.utc)
+
         await db.commit()
         await db.refresh(job)
 
+        # Guardar imagen en S3 (no fallar el endpoint si S3 falla)
+        if job.image_url and settings.aws_s3_bucket:
+            try:
+                await InventarioFotoService._upload_image_to_s3(
+                    job.image_url,
+                    job.lote_id or job.galpon_id,
+                    job.id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "inventario_foto_s3_upload_error job_id=%s error=%s",
+                    job.id,
+                    type(exc).__name__,
+                )
+
         return InventarioFotoJobOut.model_validate(job)
+
+    @staticmethod
+    async def _upload_image_to_s3(
+        local_image_path: str,
+        scope_id: str | None,
+        job_id: str,
+    ) -> None:
+        """Carga la imagen procesada a S3 para archivo histórico."""
+        if not all(
+            [
+                settings.aws_s3_bucket,
+                settings.aws_access_key_id,
+                settings.aws_secret_access_key,
+                settings.aws_region,
+            ]
+        ):
+            return
+
+        try:
+            s3_client = boto3.client(
+                "s3",
+                aws_access_key_id=settings.aws_access_key_id,
+                aws_secret_access_key=settings.aws_secret_access_key,
+                region_name=settings.aws_region,
+            )
+
+            local_path = Path(local_image_path)
+            if not local_path.exists():
+                logger.warning("Local image not found: %s", local_image_path)
+                return
+
+            s3_key = f"inventario/{scope_id}/{job_id}.jpg"
+
+            with open(local_path, "rb") as image_file:
+                s3_client.put_object(
+                    Bucket=settings.aws_s3_bucket,
+                    Key=s3_key,
+                    Body=image_file.read(),
+                    ContentType="image/jpeg",
+                    ExpectedBucketOwner=settings.aws_s3_expected_bucket_owner,
+                )
+
+            logger.info("Image uploaded to S3: s3://%s/%s", settings.aws_s3_bucket, s3_key)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Failed to upload image to S3: %s",
+                str(exc),
+            )
+            raise
 
     @staticmethod
     async def list_jobs(db: AsyncSession) -> list[InventarioFotoJobOut]:

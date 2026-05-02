@@ -21,3 +21,5 @@ flake8==7.2.0
 pytest-cov==6.1.0
 boto3==1.36.26
 reportlab==4.4.10
+fastapi-mail==1.4.1
+pytz==2024.1

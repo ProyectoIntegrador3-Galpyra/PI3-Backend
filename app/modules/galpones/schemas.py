@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.shared.enums import EstadoGalpon
+from app.shared.enums import EstadoGalpon, Turno
 
 
 class GalponBase(BaseModel):
@@ -51,3 +51,29 @@ class GalponOut(GalponBase):
     propietario_id: str
     created_at: datetime
     updated_at: datetime
+
+
+class TurnoActivoAssign(BaseModel):
+    usuario_id: str = Field(min_length=36, max_length=36)
+    turno: Turno
+    fecha: date
+
+
+class TurnoActivoResponse(BaseModel):
+    turno: Turno
+    operario_id: str | None = None
+    operario_nombre: str | None = None
+    desde: str | None = None
+    mensaje: str | None = None
+
+
+class TurnoHistorialItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    turno: Turno
+    operario_id: str
+    operario_nombre: str
+    fecha: date
+    activo: bool
+    created_at: datetime

@@ -1,9 +1,11 @@
+from datetime import date
+
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import ForeignKey, Integer, String, Text, Date, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.base_model import BaseModel
-from app.shared.enums import EstadoGalpon
+from app.shared.enums import EstadoGalpon, Turno
 
 
 class Galpon(BaseModel):
@@ -30,3 +32,33 @@ class Galpon(BaseModel):
     producciones = relationship("ProduccionHuevo", back_populates="galpon")
     alimentaciones = relationship("AlimentacionRegistro", back_populates="galpon")
     inventario_jobs = relationship("InventarioFotoJob", back_populates="galpon")
+
+
+class GalponTurno(BaseModel):
+    __tablename__ = "galpon_turnos"
+
+    galpon_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("galpones.id"),
+        nullable=False,
+        index=True,
+    )
+    usuario_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("usuarios.id"),
+        nullable=False,
+        index=True,
+    )
+    turno: Mapped[Turno] = mapped_column(
+        SAEnum(Turno),
+        nullable=False,
+    )
+    fecha: Mapped[date] = mapped_column(
+        Date,
+        nullable=False,
+        index=True,
+    )
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    galpon = relationship("Galpon")
+    usuario = relationship("Usuario")
