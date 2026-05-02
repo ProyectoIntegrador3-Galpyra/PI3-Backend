@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/parra/OneDrive/Documents/Backend-PI3/PI3-Backend/alembic/versions/**)"
+    ]
+  }
+}

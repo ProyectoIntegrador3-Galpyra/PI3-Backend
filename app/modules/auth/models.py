@@ -1,11 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from uuid import uuid4
 
 from sqlalchemy import Boolean, DateTime
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.shared.base_model import BaseModel
+from app.shared.base_model import Base, BaseModel
 from app.shared.enums import RolUsuario
 
 
@@ -56,12 +57,15 @@ class RefreshToken(BaseModel):
     usuario = relationship("Usuario", back_populates="refresh_tokens")
 
 
-class PasswordResetToken(BaseModel):
+class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
     __table_args__ = (
         UniqueConstraint("token", name="uq_password_reset_tokens_token"),
     )
 
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
     usuario_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("usuarios.id"),
@@ -73,5 +77,10 @@ class PasswordResetToken(BaseModel):
         DateTime(timezone=True), nullable=False
     )
     usado: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
     usuario = relationship("Usuario")

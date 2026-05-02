@@ -29,6 +29,13 @@ class InventarioConfirmarRequest(BaseModel):
         return self
 
 
+class ConfirmarInventarioResponse(BaseModel):
+    confirmado: bool = True
+    lote_id: str | None
+    cantidad_confirmada: int
+    job_id: str
+
+
 class InventarioFotoJobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

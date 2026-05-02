@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     smtp_user: str = Field(default="", alias="SMTP_USER")
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
     smtp_from: str = Field(default="noreply@galpyra.com", alias="SMTP_FROM")
+    smtp_from_name: str = Field(default="GALPyra", alias="SMTP_FROM_NAME")
     frontend_url: str = Field(default="", alias="FRONTEND_URL")
     password_reset_token_expire_minutes: int = Field(
         default=15,

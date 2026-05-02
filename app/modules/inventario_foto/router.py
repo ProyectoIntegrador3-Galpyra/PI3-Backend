@@ -7,7 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_current_user, get_db
 from app.core.responses import success_response
 from app.modules.auth.models import Usuario
-from app.modules.inventario_foto.schemas import InventarioConfirmarRequest
+from app.modules.inventario_foto.schemas import (
+    ConfirmarInventarioResponse,
+    InventarioConfirmarRequest,
+)
 from app.modules.inventario_foto.service import InventarioFotoService
 
 router = APIRouter(prefix="/inventario", tags=["Inventario Foto"])

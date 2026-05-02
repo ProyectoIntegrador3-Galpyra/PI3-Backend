@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.exceptions import AppException
 from app.modules.inventario_foto.models import InventarioFotoJob
 from app.modules.inventario_foto.schemas import (
+    ConfirmarInventarioResponse,
     InventarioConfirmarRequest,
     InventarioFotoJobOut,
     InventarioProcesarResponse,
@@ -368,7 +369,7 @@ class InventarioFotoService:
     async def confirmar_conteo(
         db: AsyncSession,
         payload: InventarioConfirmarRequest,
-    ) -> InventarioFotoJobOut:
+    ) -> "ConfirmarInventarioResponse":
         result = await db.execute(
             select(InventarioFotoJob).where(
                 InventarioFotoJob.id == payload.job_id,
@@ -419,7 +420,12 @@ class InventarioFotoService:
                     type(exc).__name__,
                 )
 
-        return InventarioFotoJobOut.model_validate(job)
+        return ConfirmarInventarioResponse(
+            confirmado=True,
+            lote_id=job.lote_id,
+            cantidad_confirmada=payload.conteo_confirmado,
+            job_id=job.id,
+        )
 
     @staticmethod
     async def _upload_image_to_s3(

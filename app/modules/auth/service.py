@@ -185,12 +185,12 @@ class AuthService:
         db.add(db_token)
         await db.commit()
 
-        # Aquí irría el envío de email (implementar con fastapi-mail)
-        # Por ahora solo se guarda en BD, el email se puede mockear en tests
-        # Email template:
-        # "Haz clic aquí para restablecer tu contraseña GALPyra: 
-        #  {FRONTEND_URL}/reset-password/{token}
-        #  Este enlace expira en 15 minutos."
+        from app.core.email_service import send_password_reset_email
+        await send_password_reset_email(
+            email_to=user.email,
+            nombre=user.nombre or user.email.split("@")[0],
+            token=token,
+        )
 
         return generic_response
 
