@@ -208,17 +208,38 @@ def _get_box_confidence(box) -> float | None:
             return None
 
 
-def _process_yolo_results(results: list) -> tuple[int, list[dict], float | None]:
+def _process_yolo_results(
+    results: list,
+    image_width: int,
+    image_height: int,
+) -> tuple[int, list[dict], float | None]:
     if not results:
         return 0, [], None
 
     boxes = results[0].boxes
-    detecciones_bird = [box for box in boxes if _get_box_cls(box) == _BIRD_CLASS_ID]
+    if boxes is None:
+        return 0, [], None
+
+    image_area = max(1.0, float(image_width * image_height))
+    min_area_ratio = settings.yolo_min_box_area_ratio
 
     bounding_boxes: list[dict] = []
     confidences: list[float] = []
-    for box in detecciones_bird:
+    for box in boxes:
+        if _get_box_cls(box) != _BIRD_CLASS_ID:
+            continue
+
+        conf = _get_box_confidence(box)
+        if conf is None or conf < settings.yolo_conf_threshold:
+            continue
+
         xyxy = box.xyxy.tolist()[0]
+        width = max(0.0, float(xyxy[2]) - float(xyxy[0]))
+        height = max(0.0, float(xyxy[3]) - float(xyxy[1]))
+        area_ratio = (width * height) / image_area
+        if area_ratio < min_area_ratio:
+            continue
+
         bounding_boxes.append(
             {
                 "x1": float(xyxy[0]),
@@ -227,17 +248,22 @@ def _process_yolo_results(results: list) -> tuple[int, list[dict], float | None]
                 "y2": float(xyxy[3]),
             }
         )
-        conf = _get_box_confidence(box)
-        if conf is not None:
-            confidences.append(conf)
+        confidences.append(conf)
 
     confidence_avg = sum(confidences) / len(confidences) if confidences else None
-    return len(detecciones_bird), bounding_boxes, confidence_avg
+    return len(bounding_boxes), bounding_boxes, confidence_avg
 
 
 def _run_yolo_inference(model, file_path: Path, request_id: str) -> list:
     try:
-        return model.predict(source=str(file_path), verbose=False)
+        return model.predict(
+            source=str(file_path),
+            verbose=False,
+            conf=settings.yolo_conf_threshold,
+            iou=settings.yolo_iou_threshold,
+            classes=[_BIRD_CLASS_ID],
+            max_det=settings.yolo_max_det,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "inventario_foto_predict_error request_id=%s error=%s",
@@ -272,7 +298,11 @@ def _infer_conteo(
         model = _load_yolo_model_once()
         if model is not None:
             results = _run_yolo_inference(model, file_path, request_id)
-            conteo, bounding_boxes, confidence_avg = _process_yolo_results(results)
+            conteo, bounding_boxes, confidence_avg = _process_yolo_results(
+                results,
+                image_width,
+                image_height,
+            )
             return conteo, bounding_boxes, confidence_avg, "model", "model", None
         return _mock_fallback(image_bytes, image_width, image_height)
     except AppException:

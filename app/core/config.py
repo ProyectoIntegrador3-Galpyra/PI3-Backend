@@ -56,6 +56,29 @@ class Settings(BaseSettings):
         default=False,
         alias="YOLO_MOCK",
     )
+    yolo_conf_threshold: float = Field(
+        default=0.55,
+        ge=0.0,
+        le=1.0,
+        alias="YOLO_CONF_THRESHOLD",
+    )
+    yolo_iou_threshold: float = Field(
+        default=0.45,
+        ge=0.0,
+        le=1.0,
+        alias="YOLO_IOU_THRESHOLD",
+    )
+    yolo_min_box_area_ratio: float = Field(
+        default=0.005,
+        ge=0.0,
+        le=1.0,
+        alias="YOLO_MIN_BOX_AREA_RATIO",
+    )
+    yolo_max_det: int = Field(
+        default=60,
+        ge=1,
+        alias="YOLO_MAX_DET",
+    )
     upload_dir: str = Field(default="./tmp_uploads", alias="UPLOAD_DIR")
 
     model_config = SettingsConfigDict(
