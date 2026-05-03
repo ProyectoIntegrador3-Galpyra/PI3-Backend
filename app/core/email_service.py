@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _get_mail_config() -> "ConnectionConfig" | None:
+def _get_mail_config():
   try:
     from fastapi_mail import ConnectionConfig  # type: ignore
 
