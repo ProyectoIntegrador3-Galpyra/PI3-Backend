@@ -25,8 +25,11 @@ def _get_mail_config():
 
 
 def _build_reset_html(token: str, nombre: str) -> str:
-  base_url = (settings.frontend_url or "galpyra://app").rstrip("/")
-  reset_link = f"{base_url}/reset-password/{token}"
+  reset_deeplink = f"galpyra://app/reset-password/{token}"
+  reset_intent_link = (
+    f"intent://app/reset-password/{token}"
+    "#Intent;scheme=galpyra;package=com.example.poultry_trace_app;end"
+  )
   return f"""
     <!DOCTYPE html>
     <html lang="es">
@@ -58,7 +61,7 @@ def _build_reset_html(token: str, nombre: str) -> str:
                   Este enlace <strong>expira en 15 minutos</strong>.
                 </p>
                 <table width="100%"><tr><td align="center">
-                  <a href="{reset_link}"
+                  <a href="{reset_intent_link}"
                      style="display:inline-block;background:#D4920A;
                             color:#ffffff;text-decoration:none;
                             font-size:16px;font-weight:700;
@@ -72,7 +75,7 @@ def _build_reset_html(token: str, nombre: str) -> str:
                 <p style="margin:12px 0 0;color:#BBBBBB;font-size:12px;">
                   O copia este enlace:<br>
                   <span style="color:#D4920A;word-break:break-all;">
-                    {reset_link}
+                    {reset_deeplink}
                   </span>
                 </p>
               </td>
