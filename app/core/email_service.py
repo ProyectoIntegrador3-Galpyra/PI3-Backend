@@ -25,7 +25,7 @@ def _get_mail_config():
 
 
 def _build_reset_html(token: str, nombre: str) -> str:
-    reset_link = f"{settings.frontend_url}/{token}"
+    reset_link = f"galpyra://app/reset-password/{token}"
     return f"""
     <!DOCTYPE html>
     <html lang="es">
