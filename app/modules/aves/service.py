@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import status
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppException
@@ -15,7 +15,7 @@ from app.modules.aves.schemas import (
     MovimientoAveOut,
 )
 from app.modules.galpones.models import Galpon
-from app.shared.enums import TipoMovimientoAve
+from app.shared.enums import TipoMovimientoAve, EstadoLote
 
 
 LOTE_NO_ENCONTRADO = "Lote no encontrado"
@@ -88,6 +88,25 @@ class AvesService:
         if data["cantidad_actual"] > galpon.capacidad:
             raise AppException(
                 message="La cantidad actual supera la capacidad del galpon",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validar que el total de aves en el galpón no supere la capacidad
+        aves_existentes_result = await db.execute(
+            select(func.sum(LoteAve.cantidad_actual)).where(
+                LoteAve.galpon_id == payload.galpon_id,
+                LoteAve.deleted_at.is_(None),
+                LoteAve.estado == EstadoLote.ACTIVO,
+            )
+        )
+        aves_existentes = aves_existentes_result.scalar() or 0
+        total_aves_despues = aves_existentes + data["cantidad_actual"]
+
+        if total_aves_despues > galpon.capacidad:
+            espacio_disponible = galpon.capacidad - aves_existentes
+            raise AppException(
+                message=f"No hay espacio disponible. Aves actuales: {aves_existentes}, "
+                        f"Espacio: {espacio_disponible}, Solicitado: {data['cantidad_actual']}",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 

@@ -65,3 +65,43 @@ async def test_create_lote_rechaza_cantidad_sobre_capacidad(
     body = response.json()
     assert body["success"] is False
     assert "capacidad" in body["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_lote_rechaza_cuando_total_supera_capacidad(
+    client, seeded_galpon_lote, auth_headers
+):
+    """
+    Test que valida el fix: No permite crear lote si el total de aves en el galpón
+    supera la capacidad. El fixture crea:
+    - Galpón con capacidad=500
+    - Lote 1 con 300 aves
+    
+    Entonces al intentar crear Lote 2 con 201 aves:
+    - Total sería 300 + 201 = 501 que supera capacidad 500
+    - Debe rechazarse
+    """
+    galpon = seeded_galpon_lote["galpon"]
+    
+    # Intenta crear un segundo lote que superaría la capacidad
+    espacio_disponible = galpon.capacidad - 300  # 200 aves disponibles
+    cantidad_para_exceder = espacio_disponible + 1  # 201, excede en 1
+    
+    response = await client.post(
+        "/api/lotes",
+        json={
+            "codigo_lote": "L-EXCEDE-001",
+            "tipo_ave": "PONEDORA",
+            "raza": "Lohmann Brown",
+            "cantidad_inicial": cantidad_para_exceder,
+            "fecha_ingreso": datetime.now(timezone.utc).isoformat(),
+            "galpon_id": galpon.id,
+            "estado": "ACTIVO",
+        },
+        headers=auth_headers,
+    )
+    
+    assert response.status_code == 400
+    body = response.json()
+    assert body["success"] is False
+    assert "espacio disponible" in body["message"].lower() or "no hay espacio" in body["message"].lower()

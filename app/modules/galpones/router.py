@@ -10,6 +10,7 @@ from app.modules.auth.models import Usuario
 from app.modules.galpones.schemas import (
     GalponCreate,
     GalponUpdate,
+    GalponDetailOut,
     TurnoActivoAssign,
     TurnoActivoResponse,
     TurnoHistorialItem,
@@ -55,7 +56,7 @@ async def list_lotes_by_galpon(
 @router.get(
     "/{galpon_id}",
     summary="Obtener galpón",
-    description="Retorna el detalle de un galpón por su ID.",
+    description="Retorna el galpón con conteo de aves activas, lotes y espacio disponible.",
 )
 async def get_galpon(
     galpon_id: str,
@@ -64,6 +65,23 @@ async def get_galpon(
 ) -> dict:
     data = await GalponService.get_by_id(db, galpon_id)
     return success_response(message="Galpon obtenido", data=data.model_dump())
+
+
+@router.get(
+    "/{galpon_id}/detalle",
+    summary="Obtener galpón con detalles de aves",
+    description="Retorna el detalle de un galpón con info de aves activas, lotes y espacio disponible.",
+)
+async def get_galpon_detalle(
+    galpon_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[Usuario, Depends(get_current_user)],
+) -> dict:
+    data = await GalponService.get_galpon_detalle(db, galpon_id)
+    return success_response(
+        message="Detalle del galpon obtenido",
+        data=data.model_dump(),
+    )
 
 
 @router.post(

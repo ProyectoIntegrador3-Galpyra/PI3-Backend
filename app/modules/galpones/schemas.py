@@ -53,6 +53,19 @@ class GalponOut(GalponBase):
     updated_at: datetime
 
 
+class GalponDetailOut(GalponBase):
+    """Galpón con información de aves activas."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    propietario_id: str
+    created_at: datetime
+    updated_at: datetime
+    cantidad_aves_actuales: int = 0
+    cantidad_lotes_activos: int = 0
+    espacio_disponible: int = 0
+
+
 class TurnoActivoAssign(BaseModel):
     usuario_id: str = Field(min_length=36, max_length=36)
     turno: Turno

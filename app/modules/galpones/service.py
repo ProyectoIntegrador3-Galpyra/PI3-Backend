@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone, date, timedelta
 
 from fastapi import status
-from sqlalchemy import select, and_, desc
+from sqlalchemy import select, and_, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.aves.models import LoteAve
@@ -14,6 +14,7 @@ from app.modules.galpones.schemas import (
     GalponCreate,
     GalponOut,
     GalponUpdate,
+    GalponDetailOut,
     TurnoActivoAssign,
     TurnoActivoResponse,
     TurnoHistorialItem,
@@ -27,16 +28,32 @@ GALPON_NO_ENCONTRADO = "Galpon no encontrado"
 
 class GalponService:
     @staticmethod
-    async def list(db: AsyncSession) -> list[GalponOut]:
+    async def get_cantidad_aves_en_galpon(
+        db: AsyncSession,
+        galpon_id: str,
+    ) -> tuple[int, int]:
+        """
+        Calcula la cantidad total de aves activas en un galpón.
+        Retorna (cantidad_aves_actuales, cantidad_lotes_activos).
+        """
         result = await db.execute(
-            select(Galpon)
-            .where(Galpon.deleted_at.is_(None))
-            .order_by(Galpon.created_at.desc())
+            select(
+                func.sum(LoteAve.cantidad_actual).label("total_aves"),
+                func.count(LoteAve.id).label("num_lotes")
+            ).where(
+                LoteAve.galpon_id == galpon_id,
+                LoteAve.deleted_at.is_(None),
+                LoteAve.estado == EstadoLote.ACTIVO,
+            )
         )
-        return [GalponOut.model_validate(item) for item in result.scalars().all()]
+        row = result.first()
+        if row is None or row[0] is None:
+            return 0, 0
+        return int(row[0] or 0), int(row[1] or 0)
 
     @staticmethod
-    async def get_by_id(db: AsyncSession, galpon_id: str) -> GalponOut:
+    async def get_galpon_detalle(db: AsyncSession, galpon_id: str) -> GalponDetailOut:
+        """Retorna galpón con detalles de aves activas."""
         result = await db.execute(
             select(Galpon).where(Galpon.id == galpon_id, Galpon.deleted_at.is_(None))
         )
@@ -47,7 +64,52 @@ class GalponService:
                 status_code=status.HTTP_404_NOT_FOUND,
             )
 
-        return GalponOut.model_validate(galpon)
+        cantidad_aves, cantidad_lotes = await GalponService.get_cantidad_aves_en_galpon(
+            db, galpon_id
+        )
+        espacio_disponible = galpon.capacidad - cantidad_aves
+
+        response = GalponDetailOut.model_validate(galpon)
+        response.cantidad_aves_actuales = cantidad_aves
+        response.cantidad_lotes_activos = cantidad_lotes
+        response.espacio_disponible = espacio_disponible
+        return response
+
+    @staticmethod
+    async def list(db: AsyncSession) -> list[GalponDetailOut]:
+        result = await db.execute(
+            select(Galpon)
+            .where(Galpon.deleted_at.is_(None))
+            .order_by(Galpon.created_at.desc())
+        )
+        galpones = result.scalars().all()
+
+        # Obtener conteo de aves por galpón en una sola query
+        aves_result = await db.execute(
+            select(
+                LoteAve.galpon_id,
+                func.sum(LoteAve.cantidad_actual).label("total_aves"),
+                func.count(LoteAve.id).label("num_lotes"),
+            ).where(
+                LoteAve.deleted_at.is_(None),
+                LoteAve.estado == EstadoLote.ACTIVO,
+            ).group_by(LoteAve.galpon_id)
+        )
+        aves_por_galpon = {row.galpon_id: (int(row.total_aves or 0), int(row.num_lotes or 0)) for row in aves_result}
+
+        items = []
+        for galpon in galpones:
+            cantidad_aves, cantidad_lotes = aves_por_galpon.get(galpon.id, (0, 0))
+            detail = GalponDetailOut.model_validate(galpon)
+            detail.cantidad_aves_actuales = cantidad_aves
+            detail.cantidad_lotes_activos = cantidad_lotes
+            detail.espacio_disponible = galpon.capacidad - cantidad_aves
+            items.append(detail)
+        return items
+
+    @staticmethod
+    async def get_by_id(db: AsyncSession, galpon_id: str) -> GalponDetailOut:
+        return await GalponService.get_galpon_detalle(db, galpon_id)
 
     @staticmethod
     async def list_lotes_by_galpon(db: AsyncSession, galpon_id: str) -> list[LoteAveOut]:
