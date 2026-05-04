@@ -151,10 +151,8 @@ def _extract_image_metadata(image_bytes: bytes) -> tuple[str, int, int]:
 
 
 def _estimate_mock_count(image_bytes: bytes, width: int, height: int) -> int:
-    digest = hashlib.sha256(image_bytes).digest()
-    seed = int.from_bytes(digest[:4], "big")
-    scale = max(1, (width * height) // 256)
-    return max(1, ((seed % 97) + width + height + scale) % 120 + 1)
+    # Modo demo: valor fijo para grabaciones/control manual del flujo.
+    return 65
 
 
 def _record_recent_count(conteo: int, request_id: str, source: str) -> None:
